@@ -29,8 +29,8 @@ jobs:
           name: ast-workers-mcp-distributions
           path: dist/
 
-  build-ast-py:
-    name: Build ast-py
+  build-ast-workers-py:
+    name: Build ast-workers-py
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,14 +43,14 @@ jobs:
       - name: Install build
         run: python3 -m pip install build --user
       
-      - name: Build ast-py
+      - name: Build ast-workers-py
         working-directory: core/python
         run: python3 -m build
       
-      - name: Store ast-py distributions
+      - name: Store ast-workers-py distributions
         uses: actions/upload-artifact@v4
         with:
-          name: ast-py-distributions
+          name: ast-workers-py-distributions
           path: core/python/dist/
 
   publish-mcp-to-pypi:
@@ -72,20 +72,20 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  publish-ast-py-to-pypi:
-    name: Publish ast-py to PyPI
-    needs: build-ast-py
+  publish-ast-workers-py-to-pypi:
+    name: Publish ast-workers-py to PyPI
+    needs: build-ast-workers-py
     runs-on: ubuntu-latest
     environment:
-      name: pypi-ast-py
-      url: https://pypi.org/p/ast-py
+      name: pypi-ast-workers-py
+      url: https://pypi.org/p/ast-workers-py
     permissions:
       id-token: write
     steps:
       - name: Download distributions
         uses: actions/download-artifact@v4
         with:
-          name: ast-py-distributions
+          name: ast-workers-py-distributions
           path: dist/
       
       - name: Publish to PyPI
@@ -113,20 +113,20 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
 
-  publish-ast-py-to-testpypi:
-    name: Publish ast-py to TestPyPI
-    needs: build-ast-py
+  publish-ast-workers-py-to-testpypi:
+    name: Publish ast-workers-py to TestPyPI
+    needs: build-ast-workers-py
     runs-on: ubuntu-latest
     environment:
-      name: testpypi-ast-py
-      url: https://test.pypi.org/p/ast-py
+      name: testpypi-ast-workers-py
+      url: https://test.pypi.org/p/ast-workers-py
     permissions:
       id-token: write
     steps:
       - name: Download distributions
         uses: actions/download-artifact@v4
         with:
-          name: ast-py-distributions
+          name: ast-workers-py-distributions
           path: dist/
       
       - name: Publish to TestPyPI
