@@ -39,10 +39,10 @@
 
 ```bash
 # 安装 MCP 服务器
-pip install -e .
+pip install ast-workers-mcp
 
 # 安装 Python AST CLI（.py 文件需要）
-pip install -e ./core/python
+pip install ast-workers-py
 ```
 
 ## 使用方法

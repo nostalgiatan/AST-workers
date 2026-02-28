@@ -39,10 +39,10 @@ Each language uses its own AST library and CLI tool, connected via subprocess. T
 
 ```bash
 # Install the MCP server
-pip install -e .
+pip install ast-workers-mcp
 
 # Install Python AST CLI (required for .py files)
-pip install -e ./core/python
+pip install ast-workers-py
 ```
 
 ## Usage

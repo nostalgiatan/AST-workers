@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ast-py"
+name = "ast-workers-py"
 version = "0.1.0"
 description = "AST-level operations for Python code - CLI tool"
 readme = "README.md"
