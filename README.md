@@ -57,6 +57,25 @@ ast-workers-mcp
 ast-workers-mcp --transport http --port 8080
 ```
 
+### CLI Usage (ast-py)
+
+```bash
+# Insert a function
+ast-py insert-function -m src/auth.py -n validate_token -p "token:str" -r bool -b "return len(token) > 10"
+
+# Insert a method into a class
+ast-py insert-function -m src/auth.py -c AuthService -n check_permissions -p "user:User, action:str" -r bool
+
+# Update function signature
+ast-py update-function -m src/auth.py -c AuthService -n login -p "self, user_id:int" -r "Optional[User]"
+
+# Show symbol with context
+ast-py show -m src/auth.py -n AuthService.login
+
+# Batch operations via JSON
+ast-py batch -m src/auth.py --json ops.json
+```
+
 ### Available Tools
 
 | Tool | Description |
@@ -73,11 +92,66 @@ ast-workers-mcp --transport http --port 8080
 | `list_classes` | List classes in a module |
 | `list_imports` | List imports in a module |
 | `find_symbol` | Find a symbol's location and type |
+| `show_symbol` | Show a symbol with surrounding context |
 | `validate_syntax` | Validate syntax of a module |
 | `format_code` | Format code using formatters (black, etc.) |
 | `batch_operations` | Execute multiple operations in batch |
 | `list_supported_languages` | List supported languages and CLI status |
 | `get_tools_info` | Get all available tools and their schemas |
+
+### Key Features
+
+#### Scoped Naming Convention
+
+Use dot notation to target nested symbols:
+
+```python
+# Module-level function
+show_symbol(params={"module": "src/auth.py", "name": "validate_token"})
+
+# Class method
+show_symbol(params={"module": "src/auth.py", "name": "AuthService.login"})
+
+# Nested class
+show_symbol(params={"module": "src/models.py", "name": "OuterClass.InnerClass"})
+```
+
+#### Structured Body Format
+
+For multi-line code with proper indentation, use structured lists:
+
+```python
+# String body (simple)
+insert_function(params={
+    "module": "src/auth.py",
+    "name": "validate",
+    "body": "return True"
+})
+
+# Structured body (multi-line with indentation)
+# List items = new lines, Tuples = indented blocks
+insert_function(params={
+    "module": "src/auth.py",
+    "name": "process",
+    "body": [
+        "if condition:",
+        ("do_first()", "do_second()"),
+        "return result"
+    ]
+})
+```
+
+#### Update Function Signature
+
+Replace entire function signature with `params`:
+
+```python
+update_function(params={
+    "module": "src/auth.py",
+    "name": "AuthService.login",
+    "params": "self, user_id: int, timeout: int = 30"
+})
+```
 
 ### Examples
 
@@ -110,6 +184,9 @@ batch_operations(params={
 # Query functions
 list_functions(params={"module": "src/auth.py"})
 list_classes(params={"module": "src/models.py"})
+
+# Show symbol with context
+show_symbol(params={"module": "src/auth.py", "name": "AuthService.login"})
 ```
 
 ## Supported Languages
