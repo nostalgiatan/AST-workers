@@ -1,0 +1,136 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-mcp:
+    name: Build ast-workers-mcp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      
+      - name: Install build
+        run: python3 -m pip install build --user
+      
+      - name: Build ast-workers-mcp
+        run: python3 -m build
+      
+      - name: Store ast-workers-mcp distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: ast-workers-mcp-distributions
+          path: dist/
+
+  build-ast-py:
+    name: Build ast-py
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      
+      - name: Install build
+        run: python3 -m pip install build --user
+      
+      - name: Build ast-py
+        working-directory: core/python
+        run: python3 -m build
+      
+      - name: Store ast-py distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: ast-py-distributions
+          path: core/python/dist/
+
+  publish-mcp-to-pypi:
+    name: Publish ast-workers-mcp to PyPI
+    needs: build-mcp
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ast-workers-mcp
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: ast-workers-mcp-distributions
+          path: dist/
+      
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-ast-py-to-pypi:
+    name: Publish ast-py to PyPI
+    needs: build-ast-py
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-ast-py
+      url: https://pypi.org/p/ast-py
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: ast-py-distributions
+          path: dist/
+      
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-mcp-to-testpypi:
+    name: Publish ast-workers-mcp to TestPyPI
+    needs: build-mcp
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/ast-workers-mcp
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: ast-workers-mcp-distributions
+          path: dist/
+      
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-ast-py-to-testpypi:
+    name: Publish ast-py to TestPyPI
+    needs: build-ast-py
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi-ast-py
+      url: https://test.pypi.org/p/ast-py
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: ast-py-distributions
+          path: dist/
+      
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true

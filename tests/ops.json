@@ -1,0 +1,5 @@
+[
+  {"op": "insert-import", "name": "dataclasses"},
+  {"op": "insert-function", "name": "helper", "params": "x:str", "return_type": "str", "body": "return x.upper()"},
+  {"op": "insert-slots", "class": "User", "slots": ["id", "name", "email"]}
+]
