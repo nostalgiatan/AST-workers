@@ -67,3 +67,7 @@ def test_simple():
 
 def test_batch():
     pass
+def test_function(x: int, y: str = 'hello') -> bool:
+    if x < 0:
+        raise ValueError("x must be positive")
+    return x > 0

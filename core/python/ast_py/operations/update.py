@@ -16,7 +16,7 @@ class UpdateFunctionTransformer(cst.CSTTransformer):
         self,
         function_name: str,
         class_name: Optional[str] = None,
-        new_body: Optional[str] = None,
+        new_body: Optional[str | list[str | tuple]] = None,
         params: Optional[str] = None,  # Complete replacement of parameters
         add_params: Optional[str] = None,
         remove_params: Optional[list[str]] = None,
@@ -90,7 +90,7 @@ class UpdateFunctionTransformer(cst.CSTTransformer):
             return updated_node.with_changes(**changes)
         return updated_node
 
-    def _build_new_body(self, body_str: str) -> cst.BaseSuite:
+    def _build_new_body(self, body_input: str | list[str | tuple]) -> cst.BaseSuite:
         """Build function body from string or structured list.
 
         Supports two formats:
@@ -111,12 +111,20 @@ class UpdateFunctionTransformer(cst.CSTTransformer):
                 (("handle_error()",),),  # double indented
             ]
         """
-        # Handle structured list format
-        if body_str.startswith("[") and body_str.endswith("]"):
-            return self._build_structured_body(body_str)
+        # Handle structured list format directly
+        if isinstance(body_input, list):
+            from ..generator.function import _build_structured_body_from_list
+
+            return _build_structured_body_from_list(body_input)
+
+        # Handle string that looks like JSON list
+        if isinstance(body_input, str) and body_input.startswith("[") and body_input.endswith("]"):
+            return self._build_structured_body(body_input)
 
         # Simple string format - use existing logic
         import re
+
+        body_str = body_input  # For backward compatibility with existing code
 
         if not body_str.strip():
             return cst.IndentedBlock(body=[cst.SimpleStatementLine(body=[cst.Pass()])])
@@ -444,7 +452,7 @@ def update_function(
     module_path: Path,
     function_name: str,
     class_name: Optional[str] = None,
-    new_body: Optional[str] = None,
+    new_body: Optional[str | list[str | tuple]] = None,
     params: Optional[str] = None,
     add_params: Optional[str] = None,
     remove_params: Optional[list[str]] = None,
@@ -459,7 +467,7 @@ def update_function(
         module_path: Path to the Python module
         function_name: Name of the function to update
         class_name: Target class name (for methods)
-        new_body: New function body
+        new_body: New function body (string or structured list format)
         params: Complete replacement of parameters (same format as insert-function)
         add_params: Parameters to add (same format as insert-function)
         remove_params: Parameter names to remove
@@ -473,11 +481,21 @@ def update_function(
     """
     source = module_path.read_text()
 
+    # Handle new_body - parse JSON if it's a string that looks like a list
+    parsed_body: str | list[str | tuple] | None = new_body
+    if isinstance(new_body, str) and new_body.strip().startswith("["):
+        import json
+
+        try:
+            parsed_body = json.loads(new_body)
+        except json.JSONDecodeError:
+            pass  # Keep as string if not valid JSON
+
     # Create transformer
     transformer = UpdateFunctionTransformer(
         function_name=function_name,
         class_name=class_name,
-        new_body=new_body,
+        new_body=parsed_body,
         params=params,
         add_params=add_params,
         remove_params=remove_params,

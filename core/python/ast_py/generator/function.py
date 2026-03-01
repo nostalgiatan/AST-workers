@@ -193,8 +193,8 @@ def _build_body(body_lines: Sequence[str | tuple], is_method: bool = False) -> c
        - tuple: one level deeper indent for each item
        - nested tuples: multiple levels of indent
     """
-    # Check for structured format (contains tuples)
-    has_tuples = any(isinstance(item, tuple) for item in body_lines)
+    # Check for structured format (contains tuples or nested lists)
+    has_tuples = any(isinstance(item, (tuple, list)) and not isinstance(item, str) for item in body_lines)
     if has_tuples:
         return _build_structured_body_from_list(body_lines)
 
@@ -289,12 +289,13 @@ def _build_structured_body_from_list(body_list: Sequence[Any]) -> cst.BaseSuite:
         """Recursively build lines with proper indentation."""
         lines = []
         for item in items:
-            if isinstance(item, tuple):
-                # Each item in tuple gets one more indent
+            # Handle both tuple and list (JSON serializes tuples as lists)
+            if isinstance(item, (tuple, list)) and not isinstance(item, str):
+                # Each item in tuple/list gets one more indent
                 nested_indent = base_indent + 4
                 for sub_item in item:
-                    if isinstance(sub_item, tuple):
-                        # Nested tuple = more indent
+                    if isinstance(sub_item, (tuple, list)) and not isinstance(sub_item, str):
+                        # Nested tuple/list = more indent
                         lines.extend(build_lines([sub_item], nested_indent))
                     else:
                         lines.append(" " * nested_indent + str(sub_item))

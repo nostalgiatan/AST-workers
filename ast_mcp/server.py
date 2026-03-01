@@ -616,8 +616,9 @@ class UpdateFunctionParams(BaseModel):
         default=None,
         description="DEPRECATED: Use scoped naming in 'name' instead (e.g., 'ClassName.method')",
     )
-    body: Optional[str] = Field(
+    body: Optional[str | list[str | tuple]] = Field(
         default=None,
+        description="New function body. Supports string or structured list format like insert_function.",
         description="New function body. Supports string or structured list format like insert_function.",
     )
     params: Optional[str] = Field(
@@ -743,7 +744,13 @@ def update_function(params: UpdateFunctionParams) -> dict[str, Any]:
     if params.class_name:
         args.extend(["-c", params.class_name])
     if params.body:
-        args.extend(["-b", params.body])
+        # Support both string and structured list format
+        if isinstance(params.body, list):
+            import json
+
+            args.extend(["-b", json.dumps(params.body)])
+        else:
+            args.extend(["-b", params.body])
     if params.params:
         args.extend(["-p", params.params])
     if params.add_params:
