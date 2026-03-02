@@ -28,9 +28,10 @@
     ▼              ▼              ▼             ▼
 ┌───────┐   ┌──────────┐   ┌─────────┐   ┌─────────┐
 │ast-py │   │ast-ts    │   │ast-go   │   │ast-rust │
-│ ✅    │   │ 计划中   │   │ 计划中  │   │ 计划中  │
+│ ✅    │   │ ✅       │   │ 计划中  │   │ 计划中  │
 └───────┘   └──────────┘   └─────────┘   └─────────┘
   .py        .ts/.tsx       .go          .rs
+             .js/.jsx
 ```
 
 每种语言使用自己的 AST 库和 CLI 工具，通过 subprocess 连接。MCP 服务器根据文件扩展名或显式语言参数路由请求。
@@ -43,7 +44,29 @@ pip install ast-workers-mcp
 
 # 安装 Python AST CLI（.py 文件需要）
 pip install ast-workers-py
+
+# 安装 TypeScript AST CLI（.ts/.tsx/.js/.jsx 文件需要）
+ast-workers-mcp install-ts
 ```
+
+### 安装 TypeScript CLI
+
+TypeScript CLI（`ast-ts`）已打包在 MCP 包中。安装 `ast-workers-mcp` 后：
+
+```bash
+# 安装 ast-ts
+ast-workers-mcp install-ts
+
+# 验证安装
+ast-ts --help
+
+# 卸载 ast-ts
+ast-workers-mcp install-ts --uninstall
+```
+
+**系统要求：**
+- Node.js 18.0.0 或更高版本
+- npm
 
 ## 使用方法
 
@@ -76,6 +99,31 @@ ast-py show -m src/auth.py -n AuthService.login
 ast-py batch -m src/auth.py --json ops.json
 ```
 
+### CLI 使用 (ast-ts)
+
+```bash
+# 插入函数
+ast-ts insert-function -m src/auth.ts -n validateToken -p "token:string" -r boolean -b "return token.length > 10"
+
+# 向类中插入方法
+ast-ts insert-function -m src/auth.ts -c AuthService -n checkPermissions -p "user:User, action:string" -r boolean
+
+# 插入接口
+ast-ts insert-interface -m src/types.ts -n User -p "id:string, name:string, email:string"
+
+# 插入类型别名
+ast-ts insert-type-alias -m src/types.ts -n UserId -t "string | number"
+
+# 插入枚举
+ast-ts insert-enum -m src/types.ts -n Status -m "Pending, Active, Inactive"
+
+# 查看符号上下文
+ast-ts show -m src/auth.ts -n AuthService.login
+
+# 列出函数
+ast-ts list-functions -m src/auth.ts
+```
+
 ### 可用工具
 
 | 工具 | 描述 |
@@ -99,9 +147,28 @@ ast-py batch -m src/auth.py --json ops.json
 | `list_supported_languages` | 列出支持的语言和 CLI 状态 |
 | `get_tools_info` | 获取所有可用工具及其 schema |
 
-### 核心特性
+### TypeScript 专用工具
 
-#### 作用域式命名
+| 工具 | 描述 |
+|------|------|
+| `insert_interface` | 插入 TypeScript 接口 |
+| `insert_type_alias` | 插入 TypeScript 类型别名 |
+| `insert_enum` | 插入 TypeScript 枚举 |
+| `list_interfaces` | 列出 TypeScript 模块中的接口 |
+| `list_enums` | 列出 TypeScript 模块中的枚举 |
+| `list_type_aliases` | 列出 TypeScript 模块中的类型别名 |
+
+### 语言能力查询
+
+查看每种语言支持的操作：
+
+```python
+get_language_capabilities(params={"language": "typescript"})
+```
+
+## 核心特性
+
+### 作用域式命名
 
 使用点号定位嵌套符号：
 
@@ -153,7 +220,9 @@ update_function(params={
 })
 ```
 
-### 示例
+## 示例
+
+### Python
 
 ```python
 # 插入函数
@@ -189,12 +258,57 @@ list_classes(params={"module": "src/models.py"})
 show_symbol(params={"module": "src/auth.py", "name": "AuthService.login"})
 ```
 
+### TypeScript
+
+```python
+# 插入函数
+insert_function(params={
+    "module": "src/auth.ts",
+    "name": "validateToken",
+    "params": "token: string, expiry?: number",
+    "return_type": "boolean",
+    "body": "return token.length > 10"
+})
+
+# 插入接口
+insert_interface(params={
+    "module": "src/types.ts",
+    "name": "User",
+    "properties": "id: string, name: string, email?: string"
+})
+
+# 插入类型别名
+insert_type_alias(params={
+    "module": "src/types.ts",
+    "name": "UserId",
+    "type_definition": "string | number"
+})
+
+# 插入枚举
+insert_enum(params={
+    "module": "src/types.ts",
+    "name": "Status",
+    "members": "Pending, Active, Inactive"
+})
+
+# 插入带泛型参数的类
+insert_class(params={
+    "module": "src/models.ts",
+    "name": "Repository",
+    "type_params": "T extends Entity",
+    "implements": "Serializable, Comparable"
+})
+
+# 列出接口
+list_interfaces(params={"module": "src/types.ts"})
+```
+
 ## 支持的语言
 
 | 语言 | CLI | 状态 |
 |----------|-----|------|
 | Python | `ast-py` | ✅ 就绪 |
-| TypeScript/JavaScript | `ast-ts` | 📋 计划中 |
+| TypeScript/JavaScript | `ast-ts` | ✅ 就绪 |
 | Go | `ast-go` | 📋 计划中 |
 | Rust | `ast-rust` | 📋 计划中 |
 
@@ -205,10 +319,14 @@ AST-workers/
 ├── pyproject.toml      # 项目配置
 ├── ast_mcp/            # MCP 服务器
 │   ├── __init__.py
-│   └── server.py
+│   ├── server.py       # FastMCP 服务器
+│   ├── install_ts.py   # ast-ts 安装器
+│   └── ast-ts-dist.tar.gz  # 打包的 TypeScript CLI
 ├── core/
-│   └── python/         # Python AST CLI (ast-py)
-│       └── ast_py/
+│   ├── python/         # Python AST CLI (ast-py)
+│   │   └── ast_py/
+│   └── nodejs-ts/      # TypeScript AST CLI (ast-ts)
+│       └── src/
 ├── docs/
 │   └── JSON_SPEC.md    # JSON 规范
 └── tests/

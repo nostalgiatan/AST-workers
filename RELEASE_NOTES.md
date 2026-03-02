@@ -1,3 +1,71 @@
+## v0.1.5 TypeScript/JavaScript 支持
+
+### 🎉 新功能
+
+#### TypeScript/JavaScript AST 操作支持
+
+新增 `ast-ts` CLI 工具，完整支持 TypeScript 和 JavaScript 文件的 AST 操作：
+
+- **基础操作**: `insert_function`, `insert_class`, `insert_import`, `update_function`, `delete_function`, `delete_class`, `rename_symbol`
+- **查询操作**: `list_functions`, `list_classes`, `list_imports`, `find_symbol`, `show_symbol`
+- **TypeScript 专用**: `insert_interface`, `insert_type_alias`, `insert_enum`, `list_interfaces`, `list_enums`, `list_type_aliases`
+
+#### 打包安装方式
+
+`ast-ts` 现已打包在 `ast-workers-mcp` 中，通过命令安装：
+
+```bash
+# 安装 ast-ts
+ast-workers-mcp install-ts
+
+# 卸载 ast-ts
+ast-workers-mcp install-ts --uninstall
+```
+
+#### 语言能力查询
+
+新增 `get_language_capabilities` 工具，查看每种语言支持的操作：
+
+```python
+get_language_capabilities(params={"language": "typescript"})
+```
+
+### 📦 涉及的文件
+
+| 文件 | 修改内容 |
+|------|----------|
+| ast_mcp/server.py | 新增 TypeScript 工具定义，添加语言特定参数处理 |
+| ast_mcp/install_ts.py | 新增 ast-ts 安装/卸载功能 |
+| ast_mcp/ast-ts-dist.tar.gz | 打包的 TypeScript CLI |
+| core/nodejs-ts/ | TypeScript AST CLI 源码 |
+
+### 🔧 TypeScript 特有参数
+
+| 操作 | 参数 | 说明 |
+|------|------|------|
+| insert_class | `type_params` | 泛型参数，如 `T, U extends string` |
+| insert_class | `implements` | 实现接口，如 `Serializable, Comparable` |
+| insert_class | `is_abstract` | 是否为抽象类 |
+| insert_interface | `extends` | 继承接口 |
+| insert_interface | `properties` | 属性定义，如 `id:string, name?:string` |
+
+### ✅ 测试结果
+
+- Python 操作 ✅ 正常
+- TypeScript 操作 ✅ 正常
+- `install-ts` 命令 ✅ 正常
+- 语言能力查询 ✅ 正常
+
+### 📝 升级指南
+
+```bash
+pip install --upgrade ast-workers-mcp
+pip install --upgrade ast-workers-py
+ast-workers-mcp install-ts
+```
+
+---
+
 ## v0.1.2 Bug 修复版本
 
 ### 🐛 修复的问题

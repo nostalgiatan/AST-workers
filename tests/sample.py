@@ -26,6 +26,9 @@ class Admin(User):
 
 def helper(x: str) -> str:
     return x.upper()
+@cache
+async def cached_func(x: int) -> int:
+    return x * 2
 
 
 def first():
@@ -71,3 +74,6 @@ def test_function(x: int, y: str = 'hello') -> bool:
     if x < 0:
         raise ValueError("x must be positive")
     return x > 0
+@dataclass
+class CachedModel(BaseModel):
+    cache: dict = field(default_factory=dict)

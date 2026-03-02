@@ -1,0 +1,15 @@
+# Source files
+src/
+test/
+tsconfig.json
+
+# Development
+*.ts
+!dist/*.d.ts
+
+# Build artifacts
+*.map
+
+# Misc
+.DS_Store
+*.log

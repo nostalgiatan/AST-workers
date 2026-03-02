@@ -85,6 +85,159 @@ SUPPORTED_LANGUAGES = {
     "rust": {"cli": "ast-rust", "extensions": [".rs"], "display": "Rust"},
 }
 
+# Language capabilities matrix
+# Defines which features are supported by each language
+LANGUAGE_CAPABILITIES = {
+    "python": {
+        "insert_function": True,
+        "insert_class": True,
+        "insert_import": True,
+        "insert_variable": True,
+        "insert_interface": False,  # Python uses Protocol/ABC, not native interface
+        "insert_type_alias": False,  # Python has TypeAlias but not commonly used as separate construct
+        "insert_enum": False,  # Python has Enum class, not language-level enum
+        "insert_namespace": False,  # Python uses modules/packages
+        "insert_property": True,  # Python has @property decorator
+        "insert_accessor": True,  # Python has @property for getters/setters
+        "update_function": True,
+        "delete_function": True,
+        "delete_class": True,
+        "delete_variable": True,
+        "delete_interface": False,
+        "delete_enum": False,
+        "delete_type_alias": False,
+        "rename_symbol": True,
+        "list_functions": True,
+        "list_classes": True,
+        "list_imports": True,
+        "list_variables": True,
+        "list_interfaces": False,
+        "list_enums": False,
+        "list_type_aliases": False,
+        "show_symbol": True,
+        "find_symbol": True,
+        "validate_syntax": True,
+        "format_code": True,
+        "batch_operations": True,
+    },
+    "typescript": {
+        "insert_function": True,
+        "insert_class": True,
+        "insert_import": True,
+        "insert_variable": True,
+        "insert_interface": True,  # TypeScript native feature
+        "insert_type_alias": True,  # TypeScript native feature
+        "insert_enum": True,  # TypeScript native feature
+        "insert_namespace": True,  # TypeScript native feature
+        "insert_property": True,
+        "insert_accessor": True,  # TypeScript getters/setters
+        "update_function": True,
+        "delete_function": True,
+        "delete_class": True,
+        "delete_variable": True,
+        "delete_interface": True,
+        "delete_enum": True,
+        "delete_type_alias": True,
+        "rename_symbol": True,
+        "list_functions": True,
+        "list_classes": True,
+        "list_imports": True,
+        "list_variables": True,
+        "list_interfaces": True,
+        "list_enums": True,
+        "list_type_aliases": True,
+        "show_symbol": True,
+        "find_symbol": True,
+        "validate_syntax": True,
+        "format_code": True,
+        "batch_operations": True,
+    },
+    "go": {
+        # Placeholder - will be implemented later
+        "insert_function": False,
+        "insert_class": False,  # Go doesn't have classes, has structs
+        "insert_import": False,
+        "insert_variable": False,
+        "insert_interface": False,
+        "insert_type_alias": False,
+        "insert_enum": False,  # Go has iota, not enum
+        "insert_namespace": False,  # Go uses packages
+        "update_function": False,
+        "delete_function": False,
+        "delete_class": False,
+        "rename_symbol": False,
+        "list_functions": False,
+        "list_classes": False,
+        "list_imports": False,
+        "show_symbol": False,
+        "find_symbol": False,
+        "validate_syntax": False,
+        "format_code": False,
+        "batch_operations": False,
+    },
+    "rust": {
+        # Placeholder - will be implemented later
+        "insert_function": False,
+        "insert_class": False,  # Rust has structs, not classes
+        "insert_import": False,
+        "insert_variable": False,
+        "insert_interface": False,  # Rust has traits
+        "insert_type_alias": False,
+        "insert_enum": True,  # Rust has native enums
+        "insert_namespace": False,  # Rust uses modules
+        "update_function": False,
+        "delete_function": False,
+        "delete_class": False,
+        "rename_symbol": False,
+        "list_functions": False,
+        "list_classes": False,
+        "list_imports": False,
+        "show_symbol": False,
+        "find_symbol": False,
+        "validate_syntax": False,
+        "format_code": False,
+        "batch_operations": False,
+    },
+}
+
+
+def get_language_from_file(file_path: str) -> Optional[str]:
+    """Get language name from file extension."""
+    ext = Path(file_path).suffix.lower()
+    for lang, info in SUPPORTED_LANGUAGES.items():
+        if ext in info["extensions"]:
+            return lang
+    return None
+
+
+def check_capability(language: str, operation: str) -> bool:
+    """Check if a language supports a specific operation."""
+    capabilities = LANGUAGE_CAPABILITIES.get(language, {})
+    return capabilities.get(operation, False)
+
+
+def check_capability_or_error(module: str, language: Optional[str], operation: str) -> tuple[bool, Optional[str], Optional[str]]:
+    """Check if the language supports an operation, return error info if not.
+    
+    Returns:
+        (success, cli, error_message)
+        - success=True, cli=cli_name, error=None: Operation is supported
+        - success=False, cli=None, error=error_message: Operation not supported
+    """
+    lang = language or get_language_from_file(module)
+    if not lang:
+        return False, None, f"Cannot determine language for file: {module}"
+    
+    cli = get_cli(module, language)
+    if not cli:
+        lang_info = f" (language={language})" if language else ""
+        return False, None, f"No CLI available for file: {module}{lang_info}. Supported: python, typescript"
+    
+    if not check_capability(lang, operation):
+        return False, None, f"Operation '{operation}' is not supported for language '{lang}'. Check get_language_capabilities for supported operations."
+    
+    return True, cli, None
+
 
 def get_cli(file_path: str, language: Optional[str] = None) -> Optional[str]:
     """Get the appropriate CLI for a file.
@@ -100,8 +253,10 @@ def get_cli(file_path: str, language: Optional[str] = None) -> Optional[str]:
     # If language is explicitly specified, use it
     if language:
         cli = LANGUAGE_MAP.get(language.lower())
-        if cli and shutil.which(cli):
-            return cli
+        if cli:
+            cli_path = find_cli(cli)
+            if cli_path:
+                return cli_path
         return None
 
     # Fall back to file extension detection
@@ -110,8 +265,29 @@ def get_cli(file_path: str, language: Optional[str] = None) -> Optional[str]:
     if not cli:
         return None
     # Check if CLI is installed
-    if shutil.which(cli):
-        return cli
+    return find_cli(cli)
+
+
+def find_cli(cli_name: str) -> Optional[str]:
+    """Find CLI executable in PATH or in installed locations.
+
+    Checks:
+    1. System PATH (shutil.which)
+    2. ~/.local/bin (ast-workers-mcp install-ts location)
+
+    Returns:
+        Full path to CLI if found, None otherwise
+    """
+    # First check in PATH
+    cli_path = shutil.which(cli_name)
+    if cli_path:
+        return cli_path
+
+    # Check in ~/.local/bin (where ast-workers-mcp install-ts installs)
+    local_bin = Path.home() / ".local" / "bin" / cli_name
+    if local_bin.exists() and local_bin.is_file():
+        return str(local_bin)
+
     return None
 
 
@@ -180,64 +356,79 @@ def run_cli_command(cli: str, args: list[str]) -> dict[str, Any]:
 
 
 class InsertFunctionParams(BaseModel):
-    """Parameters for insert-function operation.
+    """Universal parameters for insert-function operation.
 
-    The body parameter supports two formats for flexible code insertion:
+    This operation creates a new function at module level or as a method within an existing class.
 
-    1. String format (simple):
-       - Single line: "return True"
-       - Multi-line: "x = 1\\ny = 2\\nreturn x + y"
+    Universal Parameters (supported by ALL languages):
+        - module: Path to source file (required)
+        - name: Function/method name (required)
+        - params: Parameter string (optional, language-specific syntax)
+        - return_type: Return type annotation (optional)
+        - body: Function body - string or structured list (optional, default: "pass")
+        - docstring: Documentation comment (optional)
+        - class_name: Class name for methods (optional, supports nested: 'Outer.Inner')
+        - is_async: Whether async function (optional)
 
-    2. Structured list format (precise indentation control):
-       - Each string is a line at base indent (4 spaces inside function)
-       - Tuple items are indented one level deeper
-       - Nested tuples add more indentation levels
+    TypeScript-only Parameters:
+        - type_params: Generic type parameters (e.g., 'T, U extends string')
+        - is_static: Static method
+        - is_private: Private method
+        - is_protected: Protected method
 
-       Example: ["if condition:", ("do_something()", "return True"), "return False"]
-       Result:   if condition:
-                   do_something()
-                   return True
-                 return False
+    Python-only Parameters:
+        - decorators: Comma-separated decorators
+
+    Structured Body Format:
+        String for simple cases, or list for indentation control:
+        ["if x:", ["return True"], "return False"]
     """
 
-    module: str = Field(description="Path to the source file (e.g., 'src/auth.py')")
-    name: str = Field(description="Function name to insert")
+    module: str = Field(description="Path to source file (required)")
+    name: str = Field(description="Function/method name to insert (required)")
     params: str = Field(
         default="",
-        description="Parameters in Python syntax. Supports: positional-only (a, /, b), keyword-only (*, c, d=1), *args, **kwargs, type annotations. Example: 'x:int, y:int=10, *args, **kwargs'",
+        description="Parameters in language-specific syntax. Python: 'x:int, y:str=\"hello\"' TypeScript: 'x: number, y?: string'",
     )
     return_type: Optional[str] = Field(
         default=None,
-        description="Return type annotation (e.g., 'bool', 'Optional[str]', 'list[dict]')",
+        description="Return type annotation (e.g., 'bool', 'Optional[str]')",
     )
     body: str | list[str | tuple] = Field(
         default="pass",
-        description="Function body. String for simple cases, or structured list for multi-line with controlled indentation. See class docstring for format details.",
+        description="Function body. String or structured list for indentation.",
     )
     class_name: Optional[str] = Field(
         default=None,
-        description="Class name if inserting a method. Use scoped naming for nested classes: 'OuterClass.InnerClass'",
+        description="Class name for methods. Supports nested: 'OuterClass.InnerClass'",
+    )
+    type_params: Optional[str] = Field(
+        default=None,
+        description="[TypeScript only] Generic type parameters. E.g., 'T, U extends string'",
     )
     decorators: Optional[str] = Field(
         default=None,
-        description="Decorators, comma-separated. With or without @. Example: '@dataclass, @classmethod' or 'dataclass, classmethod'",
+        description="[Python only] Decorators, comma-separated.",
     )
     is_async: bool = Field(default=False, description="Whether this is an async function")
+    is_static: bool = Field(default=False, description="[TypeScript only] Static method")
+    is_private: bool = Field(default=False, description="[TypeScript only] Private method")
+    is_protected: bool = Field(default=False, description="[TypeScript only] Protected method")
     docstring: Optional[str] = Field(
         default=None,
-        description="Function docstring (will be added as first line of body)",
+        description="Function docstring (Python) or JSDoc comment (TypeScript)",
     )
     after: Optional[str] = Field(
         default=None,
-        description="Insert after this symbol name. Useful for ordering functions within a module/class.",
+        description="Insert after this symbol name. Useful for ordering.",
     )
     before: Optional[str] = Field(
         default=None,
-        description="Insert before this symbol name. Alternative positioning option.",
+        description="Insert before this symbol name.",
     )
     language: Optional[str] = Field(
         default=None,
-        description="Explicit language: 'python', 'typescript', 'go', 'rust'. Auto-detected from file extension if not specified.",
+        description="Explicit language override.",
     )
 
 
@@ -351,41 +542,89 @@ def insert_function(params: InsertFunctionParams) -> dict[str, Any]:
             args.extend(["-b", params.body])
     if params.class_name:
         args.extend(["-c", params.class_name])
-    if params.decorators:
-        args.extend(["-d", params.decorators])
-    if params.is_async:
-        args.append("--is-async")
     if params.docstring:
         args.extend(["--docstring", params.docstring])
-    if params.after:
-        args.extend(["--after", params.after])
-    if params.before:
-        args.extend(["--before", params.before])
+
+    # Detect language for language-specific parameters
+    lang = params.language or get_language_from_file(params.module)
+
+    if lang == "python":
+        # Python-specific
+        if params.decorators:
+            args.extend(["-d", params.decorators])
+        if params.after:
+            args.extend(["--after", params.after])
+        if params.before:
+            args.extend(["--before", params.before])
+        if params.is_async:
+            args.append("--is-async")
+    elif lang == "typescript":
+        # TypeScript-specific
+        if params.type_params:
+            args.extend(["-t", params.type_params])
+        if params.is_async:
+            args.append("--is-async")
+        if params.is_static:
+            args.append("--is-static")
+        if params.is_private:
+            args.append("--is-private")
+        if params.is_protected:
+            args.append("--is-protected")
 
     return run_cli_command(cli, args)
 
 
 class InsertClassParams(BaseModel):
-    """Parameters for insert-class operation."""
+    """Parameters for insert-class operation.
 
+    Universal Parameters (all languages):
+        - module: Path to source file
+        - name: Class name
+        - bases: Base classes (inheritance)
+        - docstring: Class documentation
+        - after/before: Position control
+
+    Python-specific:
+        - decorators: Class decorators (@dataclass, etc.)
+
+    TypeScript-specific:
+        - implements: Interface implementations
+        - type_params: Generic type parameters
+        - is_abstract: Abstract class modifier
+    """
+
+    # Universal Parameters
     module: str = Field(description="Path to the source file")
     name: str = Field(description="Class name to insert")
     bases: Optional[str] = Field(
         default=None,
         description="Base classes, comma-separated. Example: 'BaseModel, Serializable'",
     )
-    decorators: Optional[str] = Field(
-        default=None,
-        description="Class decorators, comma-separated. Example: '@dataclass, @frozen'",
-    )
     docstring: Optional[str] = Field(default=None, description="Class docstring")
-    class_vars: Optional[str] = Field(
-        default=None,
-        description="Class variables with types and defaults. Format: 'var1:Type=default1, var2:Type2'",
-    )
     after: Optional[str] = Field(default=None, description="Insert after this symbol name")
     before: Optional[str] = Field(default=None, description="Insert before this symbol name")
     language: Optional[str] = Field(default=None, description="Explicit language override")
+
+    # Python-specific
+    decorators: Optional[str] = Field(
+        default=None,
+        description="[Python only] Class decorators, comma-separated. Example: '@dataclass, @frozen'",
+    )
+    class_vars: Optional[str] = Field(
+        default=None,
+        description="[Python only] Class variables with types and defaults. Format: 'var1:Type=default1, var2:Type2'",
+    )
+
+    # TypeScript-specific
+    implements: Optional[str] = Field(
+        default=None,
+        description="[TypeScript only] Interfaces to implement, comma-separated. Example: 'Serializable, Comparable'",
+    )
+    type_params: Optional[str] = Field(
+        default=None,
+        description="[TypeScript only] Generic type parameters. E.g., 'T, U extends BaseEntity'",
+    )
+    is_abstract: bool = Field(default=False, description="[TypeScript only] Whether this is an abstract class")
 
 
 @mcp.tool
@@ -394,14 +633,17 @@ def insert_class(params: InsertClassParams) -> dict[str, Any]:
 
     Creates a class with the specified name, optionally with:
     - Inheritance (bases)
-    - Decorators
+    - Decorators (Python)
+    - Interfaces (TypeScript implements)
+    - Generic type parameters (TypeScript)
+    - Abstract modifier (TypeScript)
     - Docstring
-    - Class variables
+    - Class variables (Python)
 
     The class will have an empty body with just 'pass' unless class_vars are specified.
     Use insert_function to add methods after creating the class.
 
-    Examples:
+    Python Examples:
         # Simple class
         insert_class(module="src/models.py", name="User")
 
@@ -423,7 +665,24 @@ def insert_class(params: InsertClassParams) -> dict[str, Any]:
             decorators="@injectable"
         )
 
-        # Position control
+    TypeScript Examples:
+        # Generic class with interface
+        insert_class(
+            module="src/models.ts",
+            name="Repository",
+            type_params="T extends Entity",
+            implements="Serializable, Comparable"
+        )
+
+        # Abstract class
+        insert_class(
+            module="src/base.ts",
+            name="BaseService",
+            is_abstract=True,
+            implements="IService"
+        )
+
+    Position Control:
         insert_class(
             module="src/models.py",
             name="Admin",
@@ -445,18 +704,34 @@ def insert_class(params: InsertClassParams) -> dict[str, Any]:
 
     args = ["insert-class", "-m", params.module, "-n", params.name]
 
-    if params.bases:
-        args.extend(["--bases", params.bases])
-    if params.decorators:
-        args.extend(["-d", params.decorators])
     if params.docstring:
         args.extend(["--docstring", params.docstring])
-    if params.class_vars:
-        args.extend(["--class-vars", params.class_vars])
-    if params.after:
-        args.extend(["--after", params.after])
-    if params.before:
-        args.extend(["--before", params.before])
+
+    # Detect language for language-specific parameters
+    lang = params.language or get_language_from_file(params.module)
+
+    if lang == "python":
+        # Python-specific
+        if params.bases:
+            args.extend(["--bases", params.bases])
+        if params.decorators:
+            args.extend(["-d", params.decorators])
+        if params.class_vars:
+            args.extend(["--class-vars", params.class_vars])
+        if params.after:
+            args.extend(["--after", params.after])
+        if params.before:
+            args.extend(["--before", params.before])
+    elif lang == "typescript":
+        # TypeScript-specific
+        if params.bases:
+            args.extend(["-e", params.bases])  # TypeScript uses --extends, not --bases
+        if params.implements:
+            args.extend(["-i", params.implements])
+        if params.type_params:
+            args.extend(["-t", params.type_params])
+        if params.is_abstract:
+            args.append("--is-abstract")
 
     return run_cli_command(cli, args)
 
@@ -539,6 +814,252 @@ def insert_import(params: InsertImportParams) -> dict[str, Any]:
     return run_cli_command(cli, args)
 
 
+class InsertInterfaceParams(BaseModel):
+    """Parameters for insert-interface operation (TypeScript only)."""
+
+    module: str = Field(description="Path to the source file")
+    name: str = Field(description="Interface name")
+    extends: Optional[str] = Field(
+        default=None,
+        description="Interfaces to extend, comma-separated. Example: 'BaseEntity, Serializable'",
+    )
+    properties: Optional[str] = Field(
+        default=None,
+        description="Property definitions. Format: 'prop1:Type1, prop2:Type2, prop3?:OptionalType'",
+    )
+    type_params: Optional[str] = Field(
+        default=None,
+        description="Generic type parameters. E.g., 'T, U extends Base'",
+    )
+    language: Optional[str] = Field(default=None, description="Explicit language override")
+
+
+@mcp.tool
+def insert_interface(params: InsertInterfaceParams) -> dict[str, Any]:
+    """Insert a TypeScript interface definition.
+
+    TypeScript-only operation. Python uses Protocol or ABC instead.
+
+    Creates an interface with:
+    - Optional extends clause (interface inheritance)
+    - Property definitions
+    - Generic type parameters
+
+    Property Syntax:
+        - Required: "name:string, age:number"
+        - Optional: "name:string, age?:number" (note the ?)
+        - Readonly: "readonly id:string, name:string"
+
+    Examples:
+        # Simple interface
+        insert_interface(
+            module="src/types.ts",
+            name="User",
+            properties="id:string, name:string, email:string"
+        )
+
+        # Interface with extends
+        insert_interface(
+            module="src/types.ts",
+            name="Admin",
+            extends="User",
+            properties="permissions:string[], role:string"
+        )
+
+        # Generic interface
+        insert_interface(
+            module="src/types.ts",
+            name="Response",
+            type_params="T",
+            properties="data:T, status:number, message:string"
+        )
+
+        # Multiple extends
+        insert_interface(
+            module="src/types.ts",
+            name="AdminUser",
+            extends="User, Auditable",
+            properties="role:Role"
+        )
+    """
+    success, cli, error = check_capability_or_error(params.module, params.language, "insert_interface")
+    if not success:
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_OPERATION",
+                "message": error,
+            },
+            "result": None,
+        }
+
+    assert cli is not None  # Type guard - cli is guaranteed non-None when success is True
+
+    args = ["insert-interface", "-m", params.module, "-n", params.name]
+
+    if params.extends:
+        args.extend(["-e", params.extends])
+    if params.properties:
+        args.extend(["--properties", params.properties])
+    if params.type_params:
+        args.extend(["-t", params.type_params])
+
+    return run_cli_command(cli, args)
+
+
+class InsertTypeAliasParams(BaseModel):
+    """Parameters for insert-type-alias operation (TypeScript only)."""
+
+    module: str = Field(description="Path to the source file")
+    name: str = Field(description="Type alias name")
+    type_definition: str = Field(description="The type definition. E.g., 'string | number', '{ name: string, age: number }'")
+    type_params: Optional[str] = Field(
+        default=None,
+        description="Generic type parameters. E.g., 'T, U'",
+    )
+    language: Optional[str] = Field(default=None, description="Explicit language override")
+
+
+@mcp.tool
+def insert_type_alias(params: InsertTypeAliasParams) -> dict[str, Any]:
+    """Insert a TypeScript type alias.
+
+    TypeScript-only operation. Python uses TypeAlias or type hints directly.
+
+    Creates a type alias for complex types:
+    - Union types
+    - Intersection types
+    - Object types
+    - Generic types
+
+    Examples:
+        # Simple type alias
+        insert_type_alias(
+            module="src/types.ts",
+            name="UserId",
+            type_definition="string | number"
+        )
+
+        # Object type
+        insert_type_alias(
+            module="src/types.ts",
+            name="User",
+            type_definition="{ id: string, name: string, email: string }"
+        )
+
+        # Generic type alias
+        insert_type_alias(
+            module="src/types.ts",
+            name="Response",
+            type_definition="{ data: T, status: number }",
+            type_params="T"
+        )
+
+        # Union with literal types
+        insert_type_alias(
+            module="src/types.ts",
+            name="Status",
+            type_definition="'pending' | 'active' | 'inactive'"
+        )
+    """
+    success, cli, error = check_capability_or_error(params.module, params.language, "insert_type_alias")
+    if not success:
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_OPERATION",
+                "message": error,
+            },
+            "result": None,
+        }
+
+    assert cli is not None  # Type guard - cli is guaranteed non-None when success is True
+
+    args = ["insert-type-alias", "-m", params.module, "-n", params.name, "--type", params.type_definition]
+
+    if params.type_params:
+        args.extend(["-t", params.type_params])
+
+    return run_cli_command(cli, args)
+
+
+class InsertEnumParams(BaseModel):
+    """Parameters for insert-enum operation (TypeScript only)."""
+
+    module: str = Field(description="Path to the source file")
+    name: str = Field(description="Enum name")
+    members: str = Field(description="Enum members, comma-separated. E.g., 'Red, Green, Blue' or 'Red=1, Green=2'")
+    is_const: bool = Field(default=False, description="Whether this is a const enum")
+    language: Optional[str] = Field(default=None, description="Explicit language override")
+
+
+@mcp.tool
+def insert_enum(params: InsertEnumParams) -> dict[str, Any]:
+    """Insert a TypeScript enum definition.
+
+    TypeScript-only operation. Python uses Enum class instead.
+
+    Creates an enum with:
+    - Auto-incrementing values (default)
+    - Explicit values
+    - Const modifier
+
+    Member Syntax:
+        - Auto values: "Red, Green, Blue" (values: 0, 1, 2)
+        - Explicit values: "Red=1, Green=2, Blue=3"
+        - String values: 'Yes="yes", No="no"'
+
+    Examples:
+        # Simple enum (auto values)
+        insert_enum(
+            module="src/types.ts",
+            name="Color",
+            members="Red, Green, Blue"
+        )
+
+        # Enum with explicit values
+        insert_enum(
+            module="src/types.ts",
+            name="HttpStatus",
+            members="OK=200, BadRequest=400, NotFound=404"
+        )
+
+        # Const enum (inlined by compiler)
+        insert_enum(
+            module="src/types.ts",
+            name="Direction",
+            members="Up, Down, Left, Right",
+            is_const=True
+        )
+
+        # String enum
+        insert_enum(
+            module="src/types.ts",
+            name="Status",
+            members='Pending="pending", Active="active", Inactive="inactive"'
+        )
+    """
+    success, cli, error = check_capability_or_error(params.module, params.language, "insert_enum")
+    if not success:
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_OPERATION",
+                "message": error,
+            },
+            "result": None,
+        }
+
+    assert cli is not None  # Type guard - cli is guaranteed non-None when success is True
+
+    args = ["insert-enum", "-m", params.module, "-n", params.name, "--members", params.members]
+
+    if params.is_const:
+        args.append("--is-const")
+
+    return run_cli_command(cli, args)
+
+
 class InsertClassVariableParams(BaseModel):
     """Parameters for insert-class-variable operation."""
 
@@ -602,23 +1123,24 @@ def insert_class_variable(params: InsertClassVariableParams) -> dict[str, Any]:
 class UpdateFunctionParams(BaseModel):
     """Parameters for update-function operation.
 
-    Supports multiple ways to modify a function:
-    - Complete replacement: 'params' replaces all parameters
-    - Incremental changes: 'add_params' and 'remove_params' modify existing
-    - Body replacement: 'body' with string or structured format
-    - Decorator management: add or remove decorators
-    - Docstring: update or remove (empty string removes)
+    Universal Parameters (all languages):
+        - module: Path to source file
+        - name: Function name (scoped for methods: 'ClassName.method')
+        - body: New function body
+        - params: Complete parameter replacement
+        - add_params/remove_params: Incremental parameter changes
+        - return_type: New return type
+        - docstring: New docstring
+
+    Python-specific:
+        - add_decorators/remove_decorators: Decorator management
     """
 
+    # Universal Parameters
     module: str = Field(description="Path to the source file")
     name: str = Field(description="Function name to update. Use scoped naming for methods: 'ClassName.method_name'")
-    class_name: Optional[str] = Field(
-        default=None,
-        description="DEPRECATED: Use scoped naming in 'name' instead (e.g., 'ClassName.method')",
-    )
     body: Optional[str | list[str | tuple]] = Field(
         default=None,
-        description="New function body. Supports string or structured list format like insert_function.",
         description="New function body. Supports string or structured list format like insert_function.",
     )
     params: Optional[str] = Field(
@@ -637,18 +1159,26 @@ class UpdateFunctionParams(BaseModel):
         default=None,
         description="New return type. Empty string '' removes the return type annotation.",
     )
-    add_decorators: Optional[list[str]] = Field(
-        default=None, description="Decorators to add (e.g., ['@cache', '@log'])"
-    )
-    remove_decorators: Optional[list[str]] = Field(
-        default=None,
-        description="Decorator names to remove (just the name, e.g. ['cache', 'log'])",
-    )
     docstring: Optional[str] = Field(
         default=None,
         description="New docstring. Empty string '' removes the docstring.",
     )
     language: Optional[str] = Field(default=None, description="Explicit language override")
+
+    # Deprecated
+    class_name: Optional[str] = Field(
+        default=None,
+        description="DEPRECATED: Use scoped naming in 'name' instead (e.g., 'ClassName.method')",
+    )
+
+    # Python-specific
+    add_decorators: Optional[list[str]] = Field(
+        default=None, description="[Python only] Decorators to add (e.g., ['@cache', '@log'])"
+    )
+    remove_decorators: Optional[list[str]] = Field(
+        default=None,
+        description="[Python only] Decorator names to remove (just the name, e.g. ['cache', 'log'])",
+    )
 
 
 @mcp.tool
@@ -765,6 +1295,9 @@ def update_function(params: UpdateFunctionParams) -> dict[str, Any]:
         args.extend(["--remove-decorators"] + params.remove_decorators)
     if params.docstring:
         args.extend(["--docstring", params.docstring])
+
+    # Note: TypeScript CLI does not support modifying type_params, is_async, is_static, is_private, is_protected
+    # These parameters are kept for API consistency but won't be applied for TypeScript
 
     return run_cli_command(cli, args)
 
@@ -1080,6 +1613,147 @@ def list_imports(params: QueryParams) -> dict[str, Any]:
         }
 
     args = ["list-imports", "-m", params.module]
+
+    return run_cli_command(cli, args)
+
+
+@mcp.tool
+def list_interfaces(params: QueryParams) -> dict[str, Any]:
+    """List all interfaces in a TypeScript module.
+
+    TypeScript-only operation. Python doesn't have native interfaces.
+
+    Returns detailed information for each interface including:
+    - name: Interface name
+    - line, end_line: Location in file
+    - extends: List of extended interfaces
+    - properties: List of property definitions
+    - type_params: Generic type parameters
+
+    Examples:
+        list_interfaces(module="src/types.ts")
+        list_interfaces(module="src/api.ts", include_private=True)
+    """
+    success, cli, error = check_capability_or_error(params.module, params.language, "list_interfaces")
+    if not success:
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_OPERATION",
+                "message": error,
+            },
+            "result": None,
+        }
+
+    assert cli is not None  # Type guard - cli is guaranteed non-None when success is True
+
+    args = ["list-interfaces", "-m", params.module]
+
+    if params.include_private:
+        args.append("--include-private")
+
+    return run_cli_command(cli, args)
+
+
+@mcp.tool
+def list_enums(params: QueryParams) -> dict[str, Any]:
+    """List all enums in a TypeScript module.
+
+    TypeScript-only operation. Python uses Enum class instead.
+
+    Returns detailed information for each enum including:
+    - name: Enum name
+    - line, end_line: Location in file
+    - members: List of member names and values
+    - is_const: Whether it's a const enum
+
+    Examples:
+        list_enums(module="src/types.ts")
+        list_enums(module="src/constants.ts")
+    """
+    success, cli, error = check_capability_or_error(params.module, params.language, "list_enums")
+    if not success:
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_OPERATION",
+                "message": error,
+            },
+            "result": None,
+        }
+
+    assert cli is not None  # Type guard - cli is guaranteed non-None when success is True
+
+    args = ["list-enums", "-m", params.module]
+
+    return run_cli_command(cli, args)
+
+
+@mcp.tool
+def list_type_aliases(params: QueryParams) -> dict[str, Any]:
+    """List all type aliases in a TypeScript module.
+
+    TypeScript-only operation. Python uses TypeAlias or type hints directly.
+
+    Returns detailed information for each type alias including:
+    - name: Type alias name
+    - line, end_line: Location in file
+    - type_definition: The aliased type
+    - type_params: Generic type parameters
+
+    Examples:
+        list_type_aliases(module="src/types.ts")
+        list_type_aliases(module="src/models.ts")
+    """
+    success, cli, error = check_capability_or_error(params.module, params.language, "list_type_aliases")
+    if not success:
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_OPERATION",
+                "message": error,
+            },
+            "result": None,
+        }
+
+    assert cli is not None  # Type guard - cli is guaranteed non-None when success is True
+
+    args = ["list-type-aliases", "-m", params.module]
+
+    return run_cli_command(cli, args)
+
+
+@mcp.tool
+def list_variables(params: QueryParams) -> dict[str, Any]:
+    """List all variables in a module.
+
+    Returns detailed information for each variable including:
+    - name: Variable name
+    - line: Line number
+    - var_type: Type annotation (if any)
+    - value: Initial value (if any)
+    - scope: 'module' or class name if class variable
+
+    Examples:
+        list_variables(module="src/config.py")
+        list_variables(module="src/constants.ts")
+    """
+    cli = get_cli(params.module, params.language)
+    if not cli:
+        lang_info = f" (language={params.language})" if params.language else ""
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_FILE_TYPE",
+                "message": f"No CLI available for file: {params.module}{lang_info}. Supported: python, typescript, go, rust",
+            },
+            "result": None,
+        }
+
+    args = ["list-variables", "-m", params.module]
+
+    if params.include_private:
+        args.append("--include-private")
 
     return run_cli_command(cli, args)
 
@@ -1431,6 +2105,125 @@ def batch_operations(params: BatchParams) -> dict[str, Any]:
 # ========== INFO TOOLS ==========
 
 
+class GetCapabilitiesParams(BaseModel):
+    """Parameters for get-language-capabilities operation."""
+
+    language: Optional[str] = Field(
+        default=None,
+        description="Language name to query (python, typescript, go, rust). If None, returns all languages.",
+    )
+
+
+@mcp.tool
+def get_language_capabilities(params: GetCapabilitiesParams) -> dict[str, Any]:
+    """Get supported operations for each programming language.
+
+    This tool shows which AST operations are supported by each language.
+    Use this to check if an operation is available before calling it,
+    avoiding errors from unsupported operations.
+
+    Returns:
+        - capabilities: Dict mapping language names to their supported operations
+        - For a specific language: returns only that language's capabilities
+
+    Operation Categories:
+        INSERT operations:
+            - insert_function: Add functions/methods
+            - insert_class: Add classes
+            - insert_import: Add import statements
+            - insert_variable: Add variables (module or class level)
+            - insert_interface: Add interfaces (TypeScript only)
+            - insert_type_alias: Add type aliases (TypeScript only)
+            - insert_enum: Add enums (TypeScript only)
+            - insert_namespace: Add namespaces (TypeScript only)
+
+        UPDATE operations:
+            - update_function: Modify function body, params, decorators
+
+        DELETE operations:
+            - delete_function: Remove functions
+            - delete_class: Remove classes
+            - delete_variable: Remove variables
+            - delete_interface: Remove interfaces (TypeScript only)
+            - delete_enum: Remove enums (TypeScript only)
+            - delete_type_alias: Remove type aliases (TypeScript only)
+
+        QUERY operations:
+            - list_functions: List all functions/methods
+            - list_classes: List all classes
+            - list_imports: List all imports
+            - list_variables: List all variables
+            - list_interfaces: List interfaces (TypeScript only)
+            - list_enums: List enums (TypeScript only)
+            - list_type_aliases: List type aliases (TypeScript only)
+            - show_symbol: Display symbol with context
+            - find_symbol: Find symbol location
+
+        UTILITY operations:
+            - rename_symbol: Rename a symbol
+            - validate_syntax: Check syntax validity
+            - format_code: Format source code
+            - batch_operations: Execute multiple operations
+
+    Language-Specific Notes:
+        Python:
+            - Uses decorators (@property, @staticmethod, etc.)
+            - No native interface/type alias/enum constructs
+            - Uses modules/packages instead of namespaces
+
+        TypeScript:
+            - Full support for interfaces, type aliases, enums, namespaces
+            - Has access modifiers: private, protected, public
+            - Generic type parameters for functions and classes
+
+        Go:
+            - Not yet implemented (coming soon)
+
+        Rust:
+            - Not yet implemented (coming soon)
+
+    Examples:
+        # Get all language capabilities
+        get_language_capabilities()
+
+        # Check TypeScript-specific capabilities
+        get_language_capabilities(language="typescript")
+
+        # Check if Python supports interfaces (it doesn't)
+        get_language_capabilities(language="python")
+    """
+    if params.language:
+        lang = params.language.lower()
+        if lang not in LANGUAGE_CAPABILITIES:
+            return {
+                "success": False,
+                "error": {
+                    "code": "UNKNOWN_LANGUAGE",
+                    "message": f"Unknown language: {params.language}. Supported: python, typescript, go, rust",
+                },
+                "result": None,
+            }
+        return {
+            "success": True,
+            "error": None,
+            "result": {
+                "language": lang,
+                "capabilities": LANGUAGE_CAPABILITIES[lang],
+                "supported_operations": [op for op, supported in LANGUAGE_CAPABILITIES[lang].items() if supported],
+                "unsupported_operations": [op for op, supported in LANGUAGE_CAPABILITIES[lang].items() if not supported],
+            },
+        }
+
+    return {
+        "success": True,
+        "error": None,
+        "result": {
+            "languages": list(LANGUAGE_CAPABILITIES.keys()),
+            "capabilities": LANGUAGE_CAPABILITIES,
+        },
+    }
+
+
 @mcp.tool
 def list_supported_languages() -> dict[str, Any]:
     """List supported programming languages and their CLI tool status.
@@ -1530,18 +2323,34 @@ def main():
     - http: HTTP Server-Sent Events transport
     - sse: Server-Sent Events (alias for http)
 
+    Subcommands:
+    - install-ts: Install bundled ast-ts TypeScript CLI
+
     Usage:
         ast-workers-mcp                    # stdio mode (default)
         ast-workers-mcp --transport stdio  # stdio mode
         ast-workers-mcp --transport http   # HTTP mode on default port
-        ast-workers-mcp --transport http --port 8080  # HTTP on port 8080
+        ast-workers-mcp install-ts         # Install ast-ts CLI
+        ast-workers-mcp install-ts --uninstall  # Uninstall ast-ts CLI
     """
     import argparse
+    import sys
 
     parser = argparse.ArgumentParser(
         description="AST Workers MCP Server - Language-aware code manipulation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Install-ts subcommand
+    install_parser = subparsers.add_parser(
+        "install-ts", help="Install bundled ast-ts TypeScript CLI"
+    )
+    install_parser.add_argument(
+        "--uninstall", "-u", action="store_true", help="Uninstall ast-ts CLI"
+    )
+
+    # Server options (when no subcommand)
     parser.add_argument(
         "--transport",
         "-t",
@@ -1564,7 +2373,14 @@ def main():
 
     args = parser.parse_args()
 
-    if args.transport == "stdio":
+    if args.command == "install-ts":
+        from ast_mcp.install_ts import uninstall_ts, install_ts
+
+        if args.uninstall:
+            sys.exit(uninstall_ts())
+        else:
+            sys.exit(install_ts())
+    elif args.transport == "stdio":
         mcp.run(transport="stdio")
     elif args.transport in ("http", "sse"):
         mcp.run(transport="sse", host=args.host, port=args.port)

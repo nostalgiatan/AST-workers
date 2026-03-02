@@ -17,8 +17,25 @@ jobs:
         with:
           python-version: "3.x"
       
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+      
       - name: Install build
         run: python3 -m pip install build --user
+      
+      - name: Install TypeScript dependencies
+        working-directory: core/nodejs-ts
+        run: npm ci
+      
+      - name: Build ast-ts
+        working-directory: core/nodejs-ts
+        run: npm run build
+      
+      - name: Package ast-ts dist
+        working-directory: core/nodejs-ts
+        run: tar -czvf ../../ast_mcp/ast-ts-dist.tar.gz dist/
       
       - name: Build ast-workers-mcp
         run: python3 -m build

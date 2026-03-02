@@ -28,9 +28,10 @@ Based on AST (Abstract Syntax Tree) structure, we provide code query, insertion,
     ▼              ▼              ▼             ▼
 ┌───────┐   ┌──────────┐   ┌─────────┐   ┌─────────┐
 │ast-py │   │ast-ts    │   │ast-go   │   │ast-rust │
-│ ✅    │   │ Planned  │   │ Planned │   │ Planned │
+│ ✅    │   │ ✅       │   │ Planned │   │ Planned │
 └───────┘   └──────────┘   └─────────┘   └─────────┘
   .py        .ts/.tsx       .go          .rs
+             .js/.jsx
 ```
 
 Each language uses its own AST library and CLI tool, connected via subprocess. The MCP server routes requests based on file extension or explicit language parameter.
@@ -43,7 +44,29 @@ pip install ast-workers-mcp
 
 # Install Python AST CLI (required for .py files)
 pip install ast-workers-py
+
+# Install TypeScript AST CLI (required for .ts/.tsx/.js/.jsx files)
+ast-workers-mcp install-ts
 ```
+
+### Install TypeScript CLI
+
+The TypeScript CLI (`ast-ts`) is bundled with the MCP package. After installing `ast-workers-mcp`:
+
+```bash
+# Install ast-ts
+ast-workers-mcp install-ts
+
+# Verify installation
+ast-ts --help
+
+# Uninstall ast-ts
+ast-workers-mcp install-ts --uninstall
+```
+
+**Requirements:**
+- Node.js 18.0.0 or higher
+- npm
 
 ## Usage
 
@@ -76,6 +99,31 @@ ast-py show -m src/auth.py -n AuthService.login
 ast-py batch -m src/auth.py --json ops.json
 ```
 
+### CLI Usage (ast-ts)
+
+```bash
+# Insert a function
+ast-ts insert-function -m src/auth.ts -n validateToken -p "token:string" -r boolean -b "return token.length > 10"
+
+# Insert a method into a class
+ast-ts insert-function -m src/auth.ts -c AuthService -n checkPermissions -p "user:User, action:string" -r boolean
+
+# Insert an interface
+ast-ts insert-interface -m src/types.ts -n User -p "id:string, name:string, email:string"
+
+# Insert a type alias
+ast-ts insert-type-alias -m src/types.ts -n UserId -t "string | number"
+
+# Insert an enum
+ast-ts insert-enum -m src/types.ts -n Status -m "Pending, Active, Inactive"
+
+# Show symbol with context
+ast-ts show -m src/auth.ts -n AuthService.login
+
+# List functions
+ast-ts list-functions -m src/auth.ts
+```
+
 ### Available Tools
 
 | Tool | Description |
@@ -99,9 +147,28 @@ ast-py batch -m src/auth.py --json ops.json
 | `list_supported_languages` | List supported languages and CLI status |
 | `get_tools_info` | Get all available tools and their schemas |
 
-### Key Features
+### TypeScript-Specific Tools
 
-#### Scoped Naming Convention
+| Tool | Description |
+|------|-------------|
+| `insert_interface` | Insert a TypeScript interface |
+| `insert_type_alias` | Insert a TypeScript type alias |
+| `insert_enum` | Insert a TypeScript enum |
+| `list_interfaces` | List interfaces in a TypeScript module |
+| `list_enums` | List enums in a TypeScript module |
+| `list_type_aliases` | List type aliases in a TypeScript module |
+
+### Language Capabilities
+
+Check which operations are supported for each language:
+
+```python
+get_language_capabilities(params={"language": "typescript"})
+```
+
+## Key Features
+
+### Scoped Naming Convention
 
 Use dot notation to target nested symbols:
 
@@ -116,7 +183,7 @@ show_symbol(params={"module": "src/auth.py", "name": "AuthService.login"})
 show_symbol(params={"module": "src/models.py", "name": "OuterClass.InnerClass"})
 ```
 
-#### Structured Body Format
+### Structured Body Format
 
 For multi-line code with proper indentation, use structured lists:
 
@@ -141,7 +208,7 @@ insert_function(params={
 })
 ```
 
-#### Update Function Signature
+### Update Function Signature
 
 Replace entire function signature with `params`:
 
@@ -153,7 +220,9 @@ update_function(params={
 })
 ```
 
-### Examples
+## Examples
+
+### Python
 
 ```python
 # Insert a function
@@ -189,12 +258,57 @@ list_classes(params={"module": "src/models.py"})
 show_symbol(params={"module": "src/auth.py", "name": "AuthService.login"})
 ```
 
+### TypeScript
+
+```python
+# Insert a function
+insert_function(params={
+    "module": "src/auth.ts",
+    "name": "validateToken",
+    "params": "token: string, expiry?: number",
+    "return_type": "boolean",
+    "body": "return token.length > 10"
+})
+
+# Insert an interface
+insert_interface(params={
+    "module": "src/types.ts",
+    "name": "User",
+    "properties": "id: string, name: string, email?: string"
+})
+
+# Insert a type alias
+insert_type_alias(params={
+    "module": "src/types.ts",
+    "name": "UserId",
+    "type_definition": "string | number"
+})
+
+# Insert an enum
+insert_enum(params={
+    "module": "src/types.ts",
+    "name": "Status",
+    "members": "Pending, Active, Inactive"
+})
+
+# Insert a class with generic type parameters
+insert_class(params={
+    "module": "src/models.ts",
+    "name": "Repository",
+    "type_params": "T extends Entity",
+    "implements": "Serializable, Comparable"
+})
+
+# List interfaces
+list_interfaces(params={"module": "src/types.ts"})
+```
+
 ## Supported Languages
 
 | Language | CLI | Status |
 |----------|-----|--------|
 | Python | `ast-py` | ✅ Ready |
-| TypeScript/JavaScript | `ast-ts` | 📋 Planned |
+| TypeScript/JavaScript | `ast-ts` | ✅ Ready |
 | Go | `ast-go` | 📋 Planned |
 | Rust | `ast-rust` | 📋 Planned |
 
@@ -205,10 +319,14 @@ AST-workers/
 ├── pyproject.toml      # Project configuration
 ├── ast_mcp/            # MCP Server
 │   ├── __init__.py
-│   └── server.py
+│   ├── server.py       # FastMCP server
+│   ├── install_ts.py   # ast-ts installer
+│   └── ast-ts-dist.tar.gz  # Bundled TypeScript CLI
 ├── core/
-│   └── python/         # Python AST CLI (ast-py)
-│       └── ast_py/
+│   ├── python/         # Python AST CLI (ast-py)
+│   │   └── ast_py/
+│   └── nodejs-ts/      # TypeScript AST CLI (ast-ts)
+│       └── src/
 ├── docs/
 │   └── JSON_SPEC.md    # JSON specification
 └── tests/

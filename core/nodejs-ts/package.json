@@ -1,26 +1,44 @@
 {
   "name": "ast-workers-ts",
-  "version": "0.1.0",
-  "description": "TypeScript AST manipulation CLI tool",
+  "version": "0.1.5",
+  "description": "TypeScript AST manipulation CLI tool - insert/update/delete functions, classes, interfaces, enums, type aliases and more",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
     "ast-ts": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "typescript",
     "ast",
     "code-manipulation",
-    "cli"
+    "cli",
+    "refactoring",
+    "code-generation",
+    "ts-morph"
   ],
-  "author": "",
+  "author": "AST Workers",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nostalgiatan/AST-workers.git",
+    "directory": "core/nodejs-ts"
+  },
+  "bugs": {
+    "url": "https://github.com/nostalgiatan/AST-workers/issues"
+  },
+  "homepage": "https://github.com/nostalgiatan/AST-workers#readme",
   "dependencies": {
     "commander": "^14.0.3",
     "ts-morph": "^27.0.2"
@@ -31,10 +49,5 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nostalgiatan/AST-workers.git",
-    "directory": "core/nodejs-ts"
   }
 }
