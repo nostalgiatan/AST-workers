@@ -1,21 +1,53 @@
 """Import statement generation using libcst."""
 
-from typing import Optional, Union
+from typing import Optional, Union, Tuple, List
 
 import libcst as cst
 
 
-def _parse_module(module: str) -> Union[cst.Attribute, cst.Name]:
-    """Parse module string to Attribute or Name node."""
-    parts = module.split(".")
+def _parse_module(module: str) -> tuple[Union[cst.Attribute, cst.Name, None], list[cst.Dot]]:
+    """Parse module string to module node and relative dots.
+
+    Returns:
+        Tuple of (module_node, relative_dots)
+        - module_node: Attribute or Name node for the module path (None if only dots)
+        - relative_dots: List of Dot nodes for relative import level
+
+    Examples:
+        "os" -> (Name("os"), [])
+        "os.path" -> (Attribute(Name("os"), "path"), [])
+        ".module" -> (Name("module"), [Dot()])
+        "..db.storage" -> (Attribute(Name("db"), "storage"), [Dot(), Dot()])
+        "..." -> (None, [Dot(), Dot(), Dot()])
+    """
+    # Count leading dots for relative import
+    leading_dots = 0
+    for char in module:
+        if char == ".":
+            leading_dots += 1
+        else:
+            break
+
+    # Create the relative dots
+    relative_dots = [cst.Dot() for _ in range(leading_dots)]
+
+    # Get the actual module path after leading dots
+    module_path = module[leading_dots:]
+
+    if not module_path:
+        # Only dots, no module path (e.g., "from .. import something")
+        return None, relative_dots
+
+    # Parse the module path
+    parts = module_path.split(".")
     if len(parts) == 1:
-        return cst.Name(value=parts[0])
+        return cst.Name(value=parts[0]), relative_dots
 
     # Build nested Attribute: a.b.c -> Attribute(Attribute(Name('a'), Name('b')), Name('c'))
     result: Union[cst.Attribute, cst.Name] = cst.Name(value=parts[0])
     for part in parts[1:]:
         result = cst.Attribute(value=result, attr=cst.Name(value=part))
-    return result
+    return result, relative_dots
 
 
 def generate_import_node(
@@ -37,12 +69,13 @@ def generate_import_node(
     """
     if from_module:
         # from X import Y
-        module_node = _parse_module(from_module)
+        module_node, relative_dots = _parse_module(from_module)
         if name == "*" or name is None:
             # from X import *
             return cst.ImportFrom(
                 module=module_node,
                 names=cst.ImportStar(),
+                relative=relative_dots,
             )
         else:
             # Parse multiple names: "Dict, List" or "Dict as D, List"
@@ -58,15 +91,18 @@ def generate_import_node(
             return cst.ImportFrom(
                 module=module_node,
                 names=import_aliases,
+                relative=relative_dots,
             )
     else:
         # import X [as Y]
         names_list = _parse_import_names(name or "")
         import_aliases2: list[cst.ImportAlias] = []
         for n, a in names_list:
+            # For absolute imports with dots, parse the module
+            module_node, _ = _parse_module(n)
             import_aliases2.append(
                 cst.ImportAlias(
-                    name=_parse_module(n) if "." in n else cst.Name(value=n),
+                    name=module_node if isinstance(module_node, cst.Attribute) else cst.Name(value=n),
                     asname=cst.AsName(name=cst.Name(value=a)) if a else None,
                 )
             )
