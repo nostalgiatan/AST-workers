@@ -1,3 +1,33 @@
+## v0.1.6 Bug 修复与文档改进
+
+### 🐛 修复
+
+#### Python 相对导入支持
+
+修复 `insert_import` 不支持相对导入的问题：
+
+```python
+# 现在可以正常工作
+insert_import(params={
+    "module": "src/auth.py",
+    "from": "..db.storage",
+    "name": "get_connection"
+})
+```
+
+**原因**：libcst 的 `ImportFrom` 节点有专门的 `relative` 字段存储前导点，之前的实现没有正确处理。
+
+### 📝 文档改进
+
+#### insert_function 参数说明优化
+
+明确 `class_name` 参数的使用场景：
+
+- **模块级函数**：只提供 `name`
+- **类方法**：**必须**同时提供 `name` 和 `class_name`
+
+---
+
 ## v0.1.5 TypeScript/JavaScript 支持
 
 ### 🎉 新功能

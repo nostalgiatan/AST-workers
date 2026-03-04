@@ -1,6 +1,6 @@
 {
   "name": "ast-workers-ts",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "TypeScript AST manipulation CLI tool - insert/update/delete functions, classes, interfaces, enums, type aliases and more",
   "type": "module",
   "main": "dist/index.js",
