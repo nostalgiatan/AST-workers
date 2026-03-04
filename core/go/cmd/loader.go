@@ -45,3 +45,40 @@ func ParseMethodReceiver(name string) (receiver, method string) {
 	}
 	return "", name
 }
+
+// ExprToString converts an AST expression to its string representation
+func ExprToString(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.StarExpr:
+		return "*" + ExprToString(t.X)
+	case *ast.ArrayType:
+		return "[]" + ExprToString(t.Elt)
+	case *ast.MapType:
+		return "map[" + ExprToString(t.Key) + "]" + ExprToString(t.Value)
+	case *ast.SelectorExpr:
+		return ExprToString(t.X) + "." + t.Sel.Name
+	case *ast.InterfaceType:
+		return "interface{}"
+	case *ast.FuncType:
+		return "func(...)"
+	case *ast.ChanType:
+		return "chan " + ExprToString(t.Value)
+	case *ast.Ellipsis:
+		return "..." + ExprToString(t.Elt)
+	case *ast.ParenExpr:
+		return "(" + ExprToString(t.X) + ")"
+	case *ast.UnaryExpr:
+		return t.Op.String() + ExprToString(t.X)
+	case *ast.BinaryExpr:
+		return ExprToString(t.X) + " " + t.Op.String() + " " + ExprToString(t.Y)
+	default:
+		return "unknown"
+	}
+}
+
+// exprToString is an alias for ExprToString (for backward compatibility)
+func exprToString(expr ast.Expr) string {
+	return ExprToString(expr)
+}

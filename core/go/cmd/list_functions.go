@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	listFunctionsClass         string
+	listFunctionsClass          string
 	listFunctionsIncludePrivate bool
+	listFunctionsUseTypeInfo    bool
 )
 
 func listFunctions() error {
@@ -19,6 +20,8 @@ func listFunctions() error {
 	fs.StringVar(&listFunctionsClass, "class", "", "Filter by receiver type (e.g., 'User')")
 	fs.StringVar(&listFunctionsClass, "c", "", "Filter by receiver type")
 	fs.BoolVar(&listFunctionsIncludePrivate, "include-private", false, "Include private functions (lowercase)")
+	fs.BoolVar(&listFunctionsIncludePrivate, "p", false, "Include private functions")
+	fs.BoolVar(&listFunctionsUseTypeInfo, "type-info", true, "Use type checker for detailed type information")
 	fs.Parse(os.Args[2:])
 
 	if modulePath == "" {
@@ -27,6 +30,12 @@ func listFunctions() error {
 
 	fset, file, err := ParseFile(modulePath)
 	checkError(err)
+
+	// Create type checker if requested
+	var tc *TypeChecker
+	if listFunctionsUseTypeInfo {
+		tc = NewTypeChecker(fset, file, modulePath)
+	}
 
 	var functions []FunctionInfo
 
@@ -61,40 +70,11 @@ func listFunctions() error {
 				continue
 			}
 
-			// Get params
-			if fn.Type.Params != nil {
-				for i, field := range fn.Type.Params.List {
-					for _, name := range field.Names {
-						info.Params = append(info.Params, Param{
-							Name: name.Name,
-							Type: exprToString(field.Type),
-						})
-					}
-					if len(field.Names) == 0 {
-						info.Params = append(info.Params, Param{
-							Name: fmt.Sprintf("_%d", i),
-							Type: exprToString(field.Type),
-						})
-					}
-				}
-			}
-
-			// Get results
-			if fn.Type.Results != nil {
-				for i, field := range fn.Type.Results.List {
-					for _, name := range field.Names {
-						info.Results = append(info.Results, Param{
-							Name: name.Name,
-							Type: exprToString(field.Type),
-						})
-					}
-					if len(field.Names) == 0 {
-						info.Results = append(info.Results, Param{
-							Name: fmt.Sprintf("_%d", i),
-							Type: exprToString(field.Type),
-						})
-					}
-				}
+			// Get parameters and results using type checker or AST
+			if tc != nil {
+				info.Params, info.Results = tc.GetFunctionType(fn)
+			} else {
+				info.Params, info.Results = extractParamsFromAST(fn.Type)
 			}
 
 			// Get docstring
@@ -111,27 +91,4 @@ func listFunctions() error {
 		Result:  functions,
 	})
 	return nil
-}
-
-func exprToString(expr ast.Expr) string {
-	switch t := expr.(type) {
-	case *ast.Ident:
-		return t.Name
-	case *ast.StarExpr:
-		return "*" + exprToString(t.X)
-	case *ast.ArrayType:
-		return "[]" + exprToString(t.Elt)
-	case *ast.MapType:
-		return "map[" + exprToString(t.Key) + "]" + exprToString(t.Value)
-	case *ast.SelectorExpr:
-		return exprToString(t.X) + "." + t.Sel.Name
-	case *ast.InterfaceType:
-		return "interface{}"
-	case *ast.FuncType:
-		return "func(...)"
-	case *ast.ChanType:
-		return "chan " + exprToString(t.Value)
-	default:
-		return "unknown"
-	}
 }

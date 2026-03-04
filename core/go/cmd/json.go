@@ -25,13 +25,13 @@ type Param struct {
 }
 
 type StructInfo struct {
-	Name      string       `json:"name"`
-	Line      int          `json:"line"`
-	EndLine   int          `json:"end_line"`
-	Fields    []FieldInfo  `json:"fields,omitempty"`
-	Methods   []MethodInfo `json:"methods,omitempty"`
-	Docstring string       `json:"docstring,omitempty"`
-	Exported  bool         `json:"exported"`
+	Name      string         `json:"name"`
+	Line      int            `json:"line"`
+	EndLine   int            `json:"end_line"`
+	Fields    []FieldInfo    `json:"fields,omitempty"`
+	Methods   []FunctionInfo `json:"methods,omitempty"`
+	Docstring string         `json:"docstring,omitempty"`
+	Exported  bool           `json:"exported"`
 }
 
 type FieldInfo struct {
@@ -39,11 +39,7 @@ type FieldInfo struct {
 	Type     string `json:"type"`
 	Tag      string `json:"tag,omitempty"`
 	Exported bool   `json:"exported"`
-}
-
-type MethodInfo struct {
-	Name string `json:"name"`
-	Line int    `json:"line"`
+	Embedded bool   `json:"embedded,omitempty"`
 }
 
 type ImportInfo struct {
