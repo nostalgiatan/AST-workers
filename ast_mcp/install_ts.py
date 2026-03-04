@@ -34,18 +34,18 @@ def check_node_npm() -> tuple[bool, str]:
     """Check if Node.js and npm are available."""
     node = shutil.which("node")
     npm = shutil.which("npm")
-    
+
     if not node:
         return False, "Node.js not found. Please install Node.js first."
     if not npm:
         return False, "npm not found. Please install npm first."
-    
+
     return True, ""
 
 
 def install_ts() -> int:
     """Install ast-ts CLI tool.
-    
+
     Returns:
         0 on success, non-zero on failure.
     """
@@ -54,34 +54,34 @@ def install_ts() -> int:
     if not ok:
         print(f"Error: {msg}", file=sys.stderr)
         return 1
-    
+
     # Get paths
     package_dir = get_package_dir()
     tarball = package_dir / "ast-ts-dist.tar.gz"
-    
+
     if not tarball.exists():
         print(f"Error: ast-ts dist not found at {tarball}", file=sys.stderr)
         return 1
-    
+
     install_dir = get_install_dir()
-    
+
     print(f"Installing ast-ts to {install_dir}...")
-    
+
     # Create install directory
     install_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Extract tarball
     with tempfile.TemporaryDirectory() as tmpdir:
         # Extract to temp directory first
         with tarfile.open(tarball, "r:gz") as tar:
             tar.extractall(tmpdir, filter='data')
-        
+
         # Move dist to install directory
         dist_src = Path(tmpdir) / "dist"
         if install_dir.exists():
             shutil.rmtree(install_dir)
         shutil.move(str(dist_src), str(install_dir))
-    
+
     # Create package.json for the installed ast-ts
     package_json = install_dir.parent / "package.json"
     package_json.parent.mkdir(parents=True, exist_ok=True)
@@ -98,7 +98,7 @@ def install_ts() -> int:
   }
 }
 ''')
-    
+
     # Install dependencies
     print("Installing dependencies...")
     result = subprocess.run(
@@ -107,22 +107,22 @@ def install_ts() -> int:
         capture_output=True,
         text=True,
     )
-    
+
     if result.returncode != 0:
         print(f"Warning: npm install had issues: {result.stderr}", file=sys.stderr)
-    
+
     # Create symlink or add to PATH instructions
     cli_js = install_dir / "cli.js"
     bin_dir = Path.home() / ".local" / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create a wrapper script
     wrapper = bin_dir / "ast-ts"
     wrapper.write_text(f'''#!/bin/bash
 exec node "{cli_js}" "$@"
 ''')
     wrapper.chmod(0o755)
-    
+
     print(f"""
 ✓ ast-ts installed successfully!
 
@@ -137,13 +137,13 @@ You can add this to your ~/.bashrc or ~/.zshrc.
 Test with:
     ast-ts --help
 """)
-    
+
     return 0
 
 
 def uninstall_ts() -> int:
     """Uninstall ast-ts CLI tool.
-    
+
     Returns:
         0 on success, non-zero on failure.
     """
@@ -151,25 +151,25 @@ def uninstall_ts() -> int:
     bin_wrapper = Path.home() / ".local" / "bin" / "ast-ts"
     package_json = install_dir.parent / "package.json"
     node_modules = install_dir.parent / "node_modules"
-    
+
     removed = []
-    
+
     if install_dir.exists():
         shutil.rmtree(install_dir)
         removed.append(str(install_dir))
-    
+
     if bin_wrapper.exists():
         bin_wrapper.unlink()
         removed.append(str(bin_wrapper))
-    
+
     if package_json.exists():
         package_json.unlink()
         removed.append(str(package_json))
-    
+
     if node_modules.exists():
         shutil.rmtree(node_modules)
         removed.append(str(node_modules))
-    
+
     if removed:
         print("Removed:")
         for path in removed:
@@ -177,7 +177,7 @@ def uninstall_ts() -> int:
         print("\n✓ ast-ts uninstalled.")
     else:
         print("ast-ts is not installed.")
-    
+
     return 0
 
 
@@ -189,9 +189,9 @@ def main():
         print("  install    Install ast-ts CLI (default)")
         print("  uninstall  Remove ast-ts CLI")
         return 1
-    
+
     command = sys.argv[1]
-    
+
     if command == "install":
         return install_ts()
     elif command == "uninstall":

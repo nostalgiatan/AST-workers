@@ -221,7 +221,7 @@ def check_capability(language: str, operation: str) -> bool:
 
 def check_capability_or_error(module: str, language: Optional[str], operation: str) -> tuple[bool, Optional[str], Optional[str]]:
     """Check if the language supports an operation, return error info if not.
-    
+
     Returns:
         (success, cli, error_message)
         - success=True, cli=cli_name, error=None: Operation is supported
@@ -230,15 +230,15 @@ def check_capability_or_error(module: str, language: Optional[str], operation: s
     lang = language or get_language_from_file(module)
     if not lang:
         return False, None, f"Cannot determine language for file: {module}"
-    
+
     cli = get_cli(module, language)
     if not cli:
         lang_info = f" (language={language})" if language else ""
         return False, None, f"No CLI available for file: {module}{lang_info}. Supported: python, typescript"
-    
+
     if not check_capability(lang, operation):
         return False, None, f"Operation '{operation}' is not supported for language '{lang}'. Check get_language_capabilities for supported operations."
-    
+
     return True, cli, None
 
 
@@ -362,12 +362,12 @@ class InsertFunctionParams(BaseModel):
     """Universal parameters for insert-function operation.
 
     IMPORTANT - Language Differences:
-    
+
     Python/TypeScript:
         - Module-level function: Provide only 'name' (e.g., name="validate_token")
         - Class method: MUST provide BOTH 'name' AND 'class_name'
           (e.g., name="login", class_name="AuthService")
-    
+
     Go:
         - Go does NOT have classes, it has structs with methods
         - Function: Provide only 'name' (e.g., name="hello")
@@ -419,6 +419,18 @@ class InsertFunctionParams(BaseModel):
 
     module: str = Field(description="Path to source file (required)")
     name: str = Field(description="Function/method name to insert (required)")
+    params: Optional[str] = Field(
+        default=None,
+        description="Parameter string (optional, language-specific syntax)",
+    )
+    return_type: Optional[str] = Field(
+        default=None,
+        description="Return type annotation (optional)",
+    )
+    body: Optional[str | list] = Field(
+        default=None,
+        description="Function body - string or structured list for multi-line code",
+    )
     class_name: Optional[str] = Field(
         default=None,
         description="[Python/TypeScript only] REQUIRED for class methods. Omit for module-level functions. Go uses 'receiver' instead.",
@@ -1279,11 +1291,11 @@ class UpdateFunctionParams(BaseModel):
     """Parameters for update-function operation.
 
     IMPORTANT - Language Differences for Finding Methods:
-    
+
     Python/TypeScript:
         - Use scoped naming: name="ClassName.method_name"
         - Example: name="AuthService.login"
-    
+
     Go:
         - For functions: name="functionName"
         - For methods: name="MethodName" (just the method name, NOT "StructName.MethodName")
@@ -1475,11 +1487,11 @@ class DeleteFunctionParams(BaseModel):
     """Parameters for delete-function operation.
 
     IMPORTANT - Language Differences for Finding Methods:
-    
+
     Python/TypeScript:
         - Use scoped naming: name="ClassName.method_name"
         - Example: name="AuthService.login"
-    
+
     Go:
         - For functions: name="functionName"
         - For methods: name="MethodName" (just the method name, NOT "StructName.MethodName")
@@ -2652,14 +2664,14 @@ def main():
     args = parser.parse_args()
 
     if args.command == "install-ts":
-        from ast_mcp.install_ts import uninstall_ts, install_ts
+        from ast_mcp.install_ts import install_ts, uninstall_ts
 
         if args.uninstall:
             sys.exit(uninstall_ts())
         else:
             sys.exit(install_ts())
     elif args.command == "install-go":
-        from ast_mcp.install_go import uninstall_go, install_go
+        from ast_mcp.install_go import install_go, uninstall_go
 
         if args.uninstall:
             sys.exit(uninstall_go())
