@@ -358,16 +358,19 @@ def run_cli_command(cli: str, args: list[str]) -> dict[str, Any]:
 class InsertFunctionParams(BaseModel):
     """Universal parameters for insert-function operation.
 
-    This operation creates a new function at module level or as a method within an existing class.
+    IMPORTANT - Two usage modes:
+        1. Module-level function: Provide only 'name' (e.g., name="validate_token")
+        2. Class method: MUST provide BOTH 'name' AND 'class_name'
+           (e.g., name="login", class_name="AuthService")
 
     Universal Parameters (supported by ALL languages):
         - module: Path to source file (required)
         - name: Function/method name (required)
+        - class_name: REQUIRED for methods, omit for module-level functions
         - params: Parameter string (optional, language-specific syntax)
         - return_type: Return type annotation (optional)
         - body: Function body - string or structured list (optional, default: "pass")
         - docstring: Documentation comment (optional)
-        - class_name: Class name for methods (optional, supports nested: 'Outer.Inner')
         - is_async: Whether async function (optional)
 
     TypeScript-only Parameters:
@@ -378,29 +381,25 @@ class InsertFunctionParams(BaseModel):
 
     Python-only Parameters:
         - decorators: Comma-separated decorators
+        - after/before: Position for insertion (relative to other functions)
 
     Structured Body Format:
         String for simple cases, or list for indentation control:
         ["if x:", ["return True"], "return False"]
+
+    Examples:
+        # Module-level function
+        insert_function(module="auth.py", name="validate", body="return True")
+
+        # Class method (MUST specify class_name!)
+        insert_function(module="auth.py", name="login", class_name="AuthService", body="pass")
     """
 
     module: str = Field(description="Path to source file (required)")
     name: str = Field(description="Function/method name to insert (required)")
-    params: str = Field(
-        default="",
-        description="Parameters in language-specific syntax. Python: 'x:int, y:str=\"hello\"' TypeScript: 'x: number, y?: string'",
-    )
-    return_type: Optional[str] = Field(
-        default=None,
-        description="Return type annotation (e.g., 'bool', 'Optional[str]')",
-    )
-    body: str | list[str | tuple] = Field(
-        default="pass",
-        description="Function body. String or structured list for indentation.",
-    )
     class_name: Optional[str] = Field(
         default=None,
-        description="Class name for methods. Supports nested: 'OuterClass.InnerClass'",
+        description="REQUIRED for class methods. Omit for module-level functions. Example: 'AuthService' or 'OuterClass.InnerClass'",
     )
     type_params: Optional[str] = Field(
         default=None,
