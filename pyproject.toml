@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ast-workers-mcp"
-version = "0.1.6"
+version = "0.2.0"
 description = "MCP Server for AST Workers - Language-aware code manipulation via CLI tools"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,6 +38,7 @@ ast-workers-mcp = "ast_mcp.server:main"
 
 [project.entry-points."ast_workers_mcp"]
 install-ts = "ast_mcp.install_ts:main"
+install-go = "ast_mcp.install_go:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -153,27 +153,30 @@ LANGUAGE_CAPABILITIES = {
         "batch_operations": True,
     },
     "go": {
-        # Placeholder - will be implemented later
-        "insert_function": False,
-        "insert_class": False,  # Go doesn't have classes, has structs
-        "insert_import": False,
+        # Go AST operations
+        "insert_function": True,
+        "insert_class": False,  # Go uses structs, not classes
+        "insert_struct": True,  # Go-specific: insert struct
+        "insert_import": True,
         "insert_variable": False,
-        "insert_interface": False,
+        "insert_interface": False,  # TODO: implement
         "insert_type_alias": False,
         "insert_enum": False,  # Go has iota, not enum
         "insert_namespace": False,  # Go uses packages
-        "update_function": False,
-        "delete_function": False,
-        "delete_class": False,
-        "rename_symbol": False,
-        "list_functions": False,
-        "list_classes": False,
-        "list_imports": False,
-        "show_symbol": False,
-        "find_symbol": False,
-        "validate_syntax": False,
-        "format_code": False,
-        "batch_operations": False,
+        "update_function": True,
+        "delete_function": True,
+        "delete_class": False,  # Use delete_struct
+        "delete_struct": True,  # Go-specific: delete struct
+        "rename_symbol": False,  # TODO: implement
+        "list_functions": True,
+        "list_classes": False,  # Use list_structs
+        "list_structs": True,  # Go-specific: list structs
+        "list_imports": True,
+        "show_symbol": True,
+        "find_symbol": False,  # TODO: implement
+        "validate_syntax": True,
+        "format_code": False,  # Go uses gofmt
+        "batch_operations": False,  # TODO: implement
     },
     "rust": {
         # Placeholder - will be implemented later
@@ -358,48 +361,67 @@ def run_cli_command(cli: str, args: list[str]) -> dict[str, Any]:
 class InsertFunctionParams(BaseModel):
     """Universal parameters for insert-function operation.
 
-    IMPORTANT - Two usage modes:
-        1. Module-level function: Provide only 'name' (e.g., name="validate_token")
-        2. Class method: MUST provide BOTH 'name' AND 'class_name'
-           (e.g., name="login", class_name="AuthService")
+    IMPORTANT - Language Differences:
+    
+    Python/TypeScript:
+        - Module-level function: Provide only 'name' (e.g., name="validate_token")
+        - Class method: MUST provide BOTH 'name' AND 'class_name'
+          (e.g., name="login", class_name="AuthService")
+    
+    Go:
+        - Go does NOT have classes, it has structs with methods
+        - Function: Provide only 'name' (e.g., name="hello")
+        - Method: MUST provide 'name' AND 'receiver'
+          (e.g., name="GetName", receiver="u *User" or receiver="u User")
+        - The 'receiver' parameter specifies the method receiver variable and type
+        - Go methods are defined outside the struct, not inside
 
     Universal Parameters (supported by ALL languages):
         - module: Path to source file (required)
         - name: Function/method name (required)
-        - class_name: REQUIRED for methods, omit for module-level functions
         - params: Parameter string (optional, language-specific syntax)
         - return_type: Return type annotation (optional)
-        - body: Function body - string or structured list (optional, default: "pass")
+        - body: Function body (optional, default: "pass" for Python, empty for Go/TS)
         - docstring: Documentation comment (optional)
-        - is_async: Whether async function (optional)
 
-    TypeScript-only Parameters:
+    Python-specific Parameters:
+        - class_name: REQUIRED for methods (class that contains the method)
+        - decorators: Comma-separated decorators
+        - after/before: Position for insertion
+        - is_async: Whether async function
+
+    TypeScript-specific Parameters:
+        - class_name: REQUIRED for methods
         - type_params: Generic type parameters (e.g., 'T, U extends string')
+        - is_async: Whether async function
         - is_static: Static method
         - is_private: Private method
         - is_protected: Protected method
 
-    Python-only Parameters:
-        - decorators: Comma-separated decorators
-        - after/before: Position for insertion (relative to other functions)
-
-    Structured Body Format:
-        String for simple cases, or list for indentation control:
-        ["if x:", ["return True"], "return False"]
+    Go-specific Parameters:
+        - receiver: REQUIRED for methods. Format: "varName TypeName" or "varName *TypeName"
+          Examples: "u User", "u *User", "s *Server"
+        - Note: Go does NOT use 'class_name' - use 'receiver' instead
 
     Examples:
-        # Module-level function
+        # Python module-level function
         insert_function(module="auth.py", name="validate", body="return True")
 
-        # Class method (MUST specify class_name!)
+        # Python class method
         insert_function(module="auth.py", name="login", class_name="AuthService", body="pass")
+
+        # Go function
+        insert_function(module="main.go", name="hello", params="name string", return_type="string")
+
+        # Go method on struct
+        insert_function(module="models.go", name="GetName", receiver="u *User", return_type="string")
     """
 
     module: str = Field(description="Path to source file (required)")
     name: str = Field(description="Function/method name to insert (required)")
     class_name: Optional[str] = Field(
         default=None,
-        description="REQUIRED for class methods. Omit for module-level functions. Example: 'AuthService' or 'OuterClass.InnerClass'",
+        description="[Python/TypeScript only] REQUIRED for class methods. Omit for module-level functions. Go uses 'receiver' instead.",
     )
     type_params: Optional[str] = Field(
         default=None,
@@ -409,25 +431,29 @@ class InsertFunctionParams(BaseModel):
         default=None,
         description="[Python only] Decorators, comma-separated.",
     )
-    is_async: bool = Field(default=False, description="Whether this is an async function")
+    is_async: bool = Field(default=False, description="[Python/TypeScript] Whether this is an async function")
     is_static: bool = Field(default=False, description="[TypeScript only] Static method")
     is_private: bool = Field(default=False, description="[TypeScript only] Private method")
     is_protected: bool = Field(default=False, description="[TypeScript only] Protected method")
     docstring: Optional[str] = Field(
         default=None,
-        description="Function docstring (Python) or JSDoc comment (TypeScript)",
+        description="Function docstring (Python) or JSDoc comment (TypeScript) or comment (Go)",
     )
     after: Optional[str] = Field(
         default=None,
-        description="Insert after this symbol name. Useful for ordering.",
+        description="[Python only] Insert after this symbol name.",
     )
     before: Optional[str] = Field(
         default=None,
-        description="Insert before this symbol name.",
+        description="[Python only] Insert before this symbol name.",
+    )
+    receiver: Optional[str] = Field(
+        default=None,
+        description="[Go only] REQUIRED for Go methods. Method receiver format: 'varName TypeName' or 'varName *TypeName'. Examples: 'u User', 'u *User', 's *Server'",
     )
     language: Optional[str] = Field(
         default=None,
-        description="Explicit language override.",
+        description="Explicit language override (python, typescript, go). Auto-detected from file extension if not provided.",
     )
 
 
@@ -569,6 +595,13 @@ def insert_function(params: InsertFunctionParams) -> dict[str, Any]:
             args.append("--is-private")
         if params.is_protected:
             args.append("--is-protected")
+    elif lang == "go":
+        # Go-specific
+        if params.receiver:
+            args.extend(["--receiver", params.receiver])
+        elif params.class_name:
+            # If class_name is provided, convert to receiver format
+            args.extend(["--receiver", f"u *{params.class_name}"])
 
     return run_cli_command(cli, args)
 
@@ -576,15 +609,24 @@ def insert_function(params: InsertFunctionParams) -> dict[str, Any]:
 class InsertClassParams(BaseModel):
     """Parameters for insert-class operation.
 
-    Universal Parameters (all languages):
+    IMPORTANT - Language Support:
+        - Python: Full support for classes with inheritance, decorators, etc.
+        - TypeScript: Full support for classes with interfaces, generics, etc.
+        - Go: NOT SUPPORTED. Go does NOT have classes. Use 'insert_struct' instead.
+
+    For Go, use insert_struct:
+        insert_struct(module="models.go", name="User", fields="Name string, Age int")
+
+    Universal Parameters (Python/TypeScript):
         - module: Path to source file
         - name: Class name
         - bases: Base classes (inheritance)
         - docstring: Class documentation
-        - after/before: Position control
 
     Python-specific:
         - decorators: Class decorators (@dataclass, etc.)
+        - class_vars: Class variables
+        - after/before: Position control
 
     TypeScript-specific:
         - implements: Interface implementations
@@ -597,11 +639,11 @@ class InsertClassParams(BaseModel):
     name: str = Field(description="Class name to insert")
     bases: Optional[str] = Field(
         default=None,
-        description="Base classes, comma-separated. Example: 'BaseModel, Serializable'",
+        description="[Python/TypeScript] Base classes, comma-separated. Example: 'BaseModel, Serializable'",
     )
     docstring: Optional[str] = Field(default=None, description="Class docstring")
-    after: Optional[str] = Field(default=None, description="Insert after this symbol name")
-    before: Optional[str] = Field(default=None, description="Insert before this symbol name")
+    after: Optional[str] = Field(default=None, description="[Python only] Insert after this symbol name")
+    before: Optional[str] = Field(default=None, description="[Python only] Insert before this symbol name")
     language: Optional[str] = Field(default=None, description="Explicit language override")
 
     # Python-specific
@@ -735,6 +777,93 @@ def insert_class(params: InsertClassParams) -> dict[str, Any]:
     return run_cli_command(cli, args)
 
 
+class InsertStructParams(BaseModel):
+    """Parameters for insert-struct operation (Go-only).
+
+    IMPORTANT - Go Structs vs Python/TypeScript Classes:
+        - Go does NOT have classes. It uses structs with methods.
+        - Use 'insert_struct' for Go, NOT 'insert_class'.
+        - Methods are defined separately using 'insert_function' with 'receiver' parameter.
+        - Python/TypeScript: use 'insert_class'
+
+    Parameters:
+        - module: Path to Go source file (required)
+        - name: Struct name (required, should be PascalCase for exported structs)
+        - fields: Struct fields (optional)
+        - docstring: Struct documentation (optional)
+
+    Field Format:
+        - Basic: "Name string, Age int"
+        - With tags: 'Name string `json:"name"`, Age int `json:"age"`'
+        - Pointer fields: "User *User, Children []*User"
+        - Nested types: "Config map[string]interface{}, Data []byte"
+
+    After creating a struct, add methods using insert_function with receiver:
+        insert_function(module="models.go", name="GetName", receiver="u *User", return_type="string")
+    """
+
+    module: str = Field(description="Path to the Go source file")
+    name: str = Field(description="Struct name to insert (PascalCase for exported structs)")
+    fields: Optional[str] = Field(
+        default=None,
+        description="Struct fields. Format: 'Name string, Age int' or with tags: 'Name string `json:\"name\"`'",
+    )
+    docstring: Optional[str] = Field(default=None, description="Struct documentation comment")
+    language: Optional[str] = Field(default=None, description="Explicit language override (default: go)")
+
+
+@mcp.tool
+def insert_struct(params: InsertStructParams) -> dict[str, Any]:
+    """Insert a new struct definition into a Go module.
+
+    Creates a struct with the specified name and fields.
+
+    Examples:
+        # Simple struct
+        insert_struct(
+            module="src/models.go",
+            name="User",
+            fields="Name string, Age int"
+        )
+
+        # Struct with documentation
+        insert_struct(
+            module="src/models.go",
+            name="User",
+            fields="Name string, Age int",
+            docstring="User represents a user in the system."
+        )
+
+        # Struct with field tags
+        insert_struct(
+            module="src/models.go",
+            name="User",
+            fields='Name string `json:"name"`, Age int `json:"age"`'
+        )
+    """
+    lang = params.language or "go"
+    cli = get_cli(params.module, lang)
+    if not cli:
+        lang_info = f" (language={params.language})" if params.language else ""
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_FILE_TYPE",
+                "message": f"No CLI available for file: {params.module}{lang_info}. Supported: go",
+            },
+            "result": None,
+        }
+
+    args = ["insert-struct", "-m", params.module, "-n", params.name]
+
+    if params.fields:
+        args.extend(["-f", params.fields])
+    if params.docstring:
+        args.extend(["--docstring", params.docstring])
+
+    return run_cli_command(cli, args)
+
+
 class InsertImportParams(BaseModel):
     """Parameters for insert-import operation."""
 
@@ -760,7 +889,7 @@ def insert_import(params: InsertImportParams) -> dict[str, Any]:
     - Avoiding duplicates (by default)
     - Both 'import X' and 'from X import Y' styles
 
-    Import Styles:
+    Import Styles (Python/TypeScript):
         1. Direct import: import os
            insert_import(module="file.py", name="os")
 
@@ -776,6 +905,16 @@ def insert_import(params: InsertImportParams) -> dict[str, Any]:
         5. From import with alias: from typing import Optional as Opt
            insert_import(module="file.py", from_module="typing", name="Optional", alias="Opt")
 
+    Import Styles (Go):
+        1. Simple import: import "fmt"
+           insert_import(module="file.go", name="fmt")
+
+        2. With alias: import f "fmt"
+           insert_import(module="file.go", name="fmt", alias="f")
+
+        3. External package: import "github.com/user/package"
+           insert_import(module="file.go", name="github.com/user/package")
+
     Examples:
         # Simple import
         insert_import(module="src/utils.py", name="os")
@@ -788,6 +927,12 @@ def insert_import(params: InsertImportParams) -> dict[str, Any]:
 
         # From import with multiple names
         insert_import(module="src/models.py", from_module="dataclasses", name="dataclass, field")
+
+        # Go import
+        insert_import(module="src/main.go", name="fmt")
+
+        # Go import with alias
+        insert_import(module="src/main.go", name="github.com/user/pkg", alias="pkg")
     """
     cli = get_cli(params.module, params.language)
     if not cli:
@@ -803,12 +948,23 @@ def insert_import(params: InsertImportParams) -> dict[str, Any]:
 
     args = ["insert-import", "-m", params.module]
 
-    if params.name:
-        args.extend(["-n", params.name])
-    if params.from_module:
-        args.extend(["-f", params.from_module])
-    if params.alias:
-        args.extend(["-a", params.alias])
+    # Detect language for language-specific parameters
+    lang = params.language or get_language_from_file(params.module)
+
+    if lang == "go":
+        # Go uses -p for path and -a for alias
+        if params.name:
+            args.extend(["-p", params.name])
+        if params.alias:
+            args.extend(["-a", params.alias])
+    else:
+        # Python/TypeScript use -n, -f, -a
+        if params.name:
+            args.extend(["-n", params.name])
+        if params.from_module:
+            args.extend(["-f", params.from_module])
+        if params.alias:
+            args.extend(["-a", params.alias])
 
     return run_cli_command(cli, args)
 
@@ -1122,9 +1278,20 @@ def insert_class_variable(params: InsertClassVariableParams) -> dict[str, Any]:
 class UpdateFunctionParams(BaseModel):
     """Parameters for update-function operation.
 
+    IMPORTANT - Language Differences for Finding Methods:
+    
+    Python/TypeScript:
+        - Use scoped naming: name="ClassName.method_name"
+        - Example: name="AuthService.login"
+    
+    Go:
+        - For functions: name="functionName"
+        - For methods: name="MethodName" (just the method name, NOT "StructName.MethodName")
+        - Go methods are identified by their receiver, not by being "inside" a struct
+
     Universal Parameters (all languages):
         - module: Path to source file
-        - name: Function name (scoped for methods: 'ClassName.method')
+        - name: Function/method name
         - body: New function body
         - params: Complete parameter replacement
         - add_params/remove_params: Incremental parameter changes
@@ -1137,7 +1304,7 @@ class UpdateFunctionParams(BaseModel):
 
     # Universal Parameters
     module: str = Field(description="Path to the source file")
-    name: str = Field(description="Function name to update. Use scoped naming for methods: 'ClassName.method_name'")
+    name: str = Field(description="Function/method name. For Python/TS methods use 'ClassName.method'. For Go methods use just the method name.")
     body: Optional[str | list[str | tuple]] = Field(
         default=None,
         description="New function body. Supports string or structured list format like insert_function.",
@@ -1305,10 +1472,21 @@ def update_function(params: UpdateFunctionParams) -> dict[str, Any]:
 
 
 class DeleteFunctionParams(BaseModel):
-    """Parameters for delete-function operation."""
+    """Parameters for delete-function operation.
+
+    IMPORTANT - Language Differences for Finding Methods:
+    
+    Python/TypeScript:
+        - Use scoped naming: name="ClassName.method_name"
+        - Example: name="AuthService.login"
+    
+    Go:
+        - For functions: name="functionName"
+        - For methods: name="MethodName" (just the method name, NOT "StructName.MethodName")
+    """
 
     module: str = Field(description="Path to the source file")
-    name: str = Field(description="Function name to delete. Use scoped naming for methods: 'ClassName.method'")
+    name: str = Field(description="Function/method name. For Python/TS methods use 'ClassName.method'. For Go methods use just the method name.")
     class_name: Optional[str] = Field(default=None, description="DEPRECATED: Use scoped naming in 'name' instead")
     language: Optional[str] = Field(default=None, description="Explicit language override")
 
@@ -1379,6 +1557,42 @@ def delete_class(params: DeleteClassParams) -> dict[str, Any]:
         }
 
     args = ["delete-class", "-m", params.module, "-n", params.name]
+
+    return run_cli_command(cli, args)
+
+
+class DeleteStructParams(BaseModel):
+    """Parameters for delete-struct operation (Go-specific)."""
+
+    module: str = Field(description="Path to the source file")
+    name: str = Field(description="Struct name to delete")
+    language: Optional[str] = Field(default=None, description="Explicit language override (default: go)")
+
+
+@mcp.tool
+def delete_struct(params: DeleteStructParams) -> dict[str, Any]:
+    """Delete a struct from a Go module.
+
+    PERMANENTLY removes the struct definition.
+    Note: Methods with this struct as receiver are NOT automatically deleted.
+
+    Examples:
+        delete_struct(module="src/models.go", name="DeprecatedModel")
+    """
+    lang = params.language or "go"
+    cli = get_cli(params.module, lang)
+    if not cli:
+        lang_info = f" (language={params.language})" if params.language else ""
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_FILE_TYPE",
+                "message": f"No CLI available for file: {params.module}{lang_info}. Supported: go",
+            },
+            "result": None,
+        }
+
+    args = ["delete-struct", "-m", params.module, "-n", params.name]
 
     return run_cli_command(cli, args)
 
@@ -1486,32 +1700,38 @@ class QueryParams(BaseModel):
 
 @mcp.tool
 def list_functions(params: QueryParams) -> dict[str, Any]:
-    """List all functions in a module or methods in a class.
+    """List all functions in a module or methods in a class/struct.
+
+    IMPORTANT - Language Differences:
+        - Python/TypeScript: Functions can be inside classes (methods) or at module level
+        - Go: Functions are at package level. Methods have a receiver but are defined outside structs.
 
     Returns detailed information for each function including:
     - name: Function name
     - line, end_line: Location in file
-    - params: List of parameters with name, type, default, kind
+    - params: List of parameters with name, type
     - return_type: Return type annotation (if any)
-    - decorators: List of decorators
     - docstring: Function docstring (if any)
-    - is_async: Whether it's an async function
-    - is_method: Whether it's a class method
+    - is_method: Whether it's a method (has receiver for Go, has class for Python/TS)
+    - receiver: (Go only) The method receiver type
 
     Use Cases:
     - Discover available functions in a module
-    - Find methods in a class before modifying
+    - Find methods in a class/struct before modifying
     - Check function signatures
     - Identify functions needing documentation
 
     Examples:
-        # List all module-level functions
+        # List all functions (including methods)
         list_functions(module="src/auth.py")
 
-        # List methods in a specific class
+        # List methods in a specific class (Python/TypeScript)
         list_functions(module="src/auth.py", class_name="AuthService")
 
-        # Include private methods (those starting with _)
+        # List methods for a Go struct
+        list_functions(module="src/models.go", class_name="User")
+
+        # Include private functions
         list_functions(module="src/utils.py", include_private=True)
     """
     cli = get_cli(params.module, params.language)
@@ -1539,6 +1759,14 @@ def list_functions(params: QueryParams) -> dict[str, Any]:
 @mcp.tool
 def list_classes(params: QueryParams) -> dict[str, Any]:
     """List all classes in a module with their structure.
+
+    IMPORTANT - Language Support:
+        - Python: Full support for classes
+        - TypeScript: Full support for classes
+        - Go: NOT SUPPORTED. Go does NOT have classes. Use 'list_structs' instead.
+
+    For Go files, use list_structs:
+        list_structs(module="src/models.go")
 
     Returns detailed information for each class including:
     - name: Class name
@@ -1575,6 +1803,46 @@ def list_classes(params: QueryParams) -> dict[str, Any]:
         }
 
     args = ["list-classes", "-m", params.module]
+
+    return run_cli_command(cli, args)
+
+
+@mcp.tool
+def list_structs(params: QueryParams) -> dict[str, Any]:
+    """List all structs in a Go module.
+
+    IMPORTANT - Go Only:
+        - Go uses structs instead of classes
+        - Python/TypeScript: use 'list_classes' instead
+
+    Returns detailed information for each struct including:
+    - name: Struct name
+    - line, end_line: Location in file
+    - fields: List of field definitions
+    - docstring: Struct docstring (if any)
+    - exported: Whether the struct is exported (PascalCase)
+
+    Examples:
+        # List all structs in a module
+        list_structs(module="src/models.go")
+
+        # Include unexported structs (lowercase names)
+        list_structs(module="src/internal.go", include_private=True)
+    """
+    lang = params.language or "go"
+    cli = get_cli(params.module, lang)
+    if not cli:
+        lang_info = f" (language={params.language})" if params.language else ""
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_FILE_TYPE",
+                "message": f"No CLI available for file: {params.module}{lang_info}. Supported: go",
+            },
+            "result": None,
+        }
+
+    args = ["list-structs", "-m", params.module]
 
     return run_cli_command(cli, args)
 
@@ -2324,6 +2592,7 @@ def main():
 
     Subcommands:
     - install-ts: Install bundled ast-ts TypeScript CLI
+    - install-go: Install bundled ast-go Go CLI (requires Go toolchain)
 
     Usage:
         ast-workers-mcp                    # stdio mode (default)
@@ -2331,6 +2600,8 @@ def main():
         ast-workers-mcp --transport http   # HTTP mode on default port
         ast-workers-mcp install-ts         # Install ast-ts CLI
         ast-workers-mcp install-ts --uninstall  # Uninstall ast-ts CLI
+        ast-workers-mcp install-go         # Install ast-go CLI
+        ast-workers-mcp install-go --uninstall  # Uninstall ast-go CLI
     """
     import argparse
     import sys
@@ -2342,11 +2613,19 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Install-ts subcommand
-    install_parser = subparsers.add_parser(
+    install_ts_parser = subparsers.add_parser(
         "install-ts", help="Install bundled ast-ts TypeScript CLI"
     )
-    install_parser.add_argument(
+    install_ts_parser.add_argument(
         "--uninstall", "-u", action="store_true", help="Uninstall ast-ts CLI"
+    )
+
+    # Install-go subcommand
+    install_go_parser = subparsers.add_parser(
+        "install-go", help="Install bundled ast-go Go CLI (requires Go toolchain)"
+    )
+    install_go_parser.add_argument(
+        "--uninstall", "-u", action="store_true", help="Uninstall ast-go CLI"
     )
 
     # Server options (when no subcommand)
@@ -2379,6 +2658,13 @@ def main():
             sys.exit(uninstall_ts())
         else:
             sys.exit(install_ts())
+    elif args.command == "install-go":
+        from ast_mcp.install_go import uninstall_go, install_go
+
+        if args.uninstall:
+            sys.exit(uninstall_go())
+        else:
+            sys.exit(install_go())
     elif args.transport == "stdio":
         mcp.run(transport="stdio")
     elif args.transport in ("http", "sse"):
