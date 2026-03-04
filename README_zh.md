@@ -28,7 +28,7 @@
     ▼              ▼              ▼             ▼
 ┌───────┐   ┌──────────┐   ┌─────────┐   ┌─────────┐
 │ast-py │   │ast-ts    │   │ast-go   │   │ast-rust │
-│ ✅    │   │ ✅       │   │ 计划中  │   │ 计划中  │
+│ ✅    │   │ ✅       │   │ ✅      │   │ 计划中  │
 └───────┘   └──────────┘   └─────────┘   └─────────┘
   .py        .ts/.tsx       .go          .rs
              .js/.jsx
@@ -47,6 +47,9 @@ pip install ast-workers-py
 
 # 安装 TypeScript AST CLI（.ts/.tsx/.js/.jsx 文件需要）
 ast-workers-mcp install-ts
+
+# 安装 Go AST CLI（.go 文件需要）
+ast-workers-mcp install-go install
 ```
 
 ### 安装 TypeScript CLI
@@ -67,6 +70,28 @@ ast-workers-mcp install-ts --uninstall
 **系统要求：**
 - Node.js 18.0.0 或更高版本
 - npm
+
+### 安装 Go CLI
+
+Go CLI（`ast-go`）从源码编译。安装 `ast-workers-mcp` 后：
+
+```bash
+# 检查依赖和安装状态
+ast-workers-mcp install-go check
+
+# 安装 ast-go（需要 Go 工具链）
+ast-workers-mcp install-go install
+
+# 验证安装
+ast-go version
+
+# 卸载 ast-go
+ast-workers-mcp install-go uninstall
+```
+
+**系统要求：**
+- Go 1.18+（支持泛型类型）
+- 系统需要安装 Go 工具链
 
 ## 使用方法
 
@@ -124,6 +149,34 @@ ast-ts show -m src/auth.ts -n AuthService.login
 ast-ts list-functions -m src/auth.ts
 ```
 
+### CLI 使用 (ast-go)
+
+```bash
+# 插入函数
+ast-go insert-function -m auth.go -n ValidateToken -p "token string" -r bool -b "return len(token) > 10"
+
+# 插入带接收者的方法
+ast-go insert-function -m auth.go -n CheckPermissions --receiver "u *User" -p "action string" -r bool -b "return u.isAdmin()"
+
+# 插入结构体
+ast-go insert-struct -m models.go -n User -f "ID:int, Name:string, Email:string"
+
+# 插入导入
+ast-go insert-import -m auth.go -p "github.com/example/pkg"
+
+# 查看符号上下文
+ast-go show -m auth.go -n User.CheckPermissions
+
+# 列出函数（带类型信息）
+ast-go list-functions -m auth.go
+
+# 列出结构体（带方法）
+ast-go list-structs -m models.go --with-methods
+
+# 验证语法
+ast-go validate -m auth.go
+```
+
 ### 可用工具
 
 | 工具 | 描述 |
@@ -158,12 +211,41 @@ ast-ts list-functions -m src/auth.ts
 | `list_enums` | 列出 TypeScript 模块中的枚举 |
 | `list_type_aliases` | 列出 TypeScript 模块中的类型别名 |
 
+### Go 专用工具
+
+| 工具 | 描述 |
+|------|------|
+| `insert_struct` | 插入 Go 结构体 |
+| `list_structs` | 列出 Go 模块中的结构体 |
+| `delete_struct` | 从模块中删除结构体 |
+
+**注意：** Go 使用 **receiver** 参数来定义方法，而不是 **class_name**：
+
+```python
+# Go 方法（使用 receiver）
+insert_function(params={
+    "module": "auth.go",
+    "name": "CheckPermissions",
+    "receiver": "u *User",  # Go 方法接收者
+    "params": "action string",
+    "return_type": "bool"
+})
+
+# Python/TypeScript 方法（使用 class_name）
+insert_function(params={
+    "module": "auth.py",
+    "name": "check_permissions",
+    "class_name": "AuthService",  # Python/TS 类名
+    "params": "action: str"
+})
+```
+
 ### 语言能力查询
 
 查看每种语言支持的操作：
 
 ```python
-get_language_capabilities(params={"language": "typescript"})
+get_language_capabilities(params={"language": "go"})
 ```
 
 ## 核心特性
@@ -303,14 +385,56 @@ insert_class(params={
 list_interfaces(params={"module": "src/types.ts"})
 ```
 
+### Go
+
+```python
+# 插入函数
+insert_function(params={
+    "module": "auth.go",
+    "name": "ValidateToken",
+    "params": "token string, expiry int",
+    "return_type": "bool",
+    "body": "return len(token) > 10"
+})
+
+# 插入带接收者的方法
+insert_function(params={
+    "module": "auth.go",
+    "name": "CheckPermissions",
+    "receiver": "u *User",  # Go 使用 receiver 定义方法
+    "params": "action string",
+    "return_type": "bool",
+    "body": "return u.isAdmin()"
+})
+
+# 插入结构体
+insert_struct(params={
+    "module": "models.go",
+    "name": "User",
+    "fields": "ID:int, Name:string, Email:string"
+})
+
+# 插入导入
+insert_import(params={
+    "module": "auth.go",
+    "name": "fmt"
+})
+
+# 查询结构体（带方法）
+list_structs(params={"module": "models.go"})
+
+# 显示符号上下文
+show_symbol(params={"module": "auth.go", "name": "User.CheckPermissions"})
+```
+
 ## 支持的语言
 
-| 语言 | CLI | 状态 |
-|----------|-----|------|
-| Python | `ast-py` | ✅ 就绪 |
-| TypeScript/JavaScript | `ast-ts` | ✅ 就绪 |
-| Go | `ast-go` | 📋 计划中 |
-| Rust | `ast-rust` | 📋 计划中 |
+| 语言 | CLI | 状态 | 系统要求 |
+|----------|-----|------|----------|
+| Python | `ast-py` | ✅ 就绪 | `pip install ast-workers-py` |
+| TypeScript/JavaScript | `ast-ts` | ✅ 就绪 | Node.js 18+ |
+| Go | `ast-go` | ✅ 就绪 | Go 1.18+ |
+| Rust | `ast-rust` | 📋 计划中 | - |
 
 ## 项目结构
 
@@ -321,12 +445,15 @@ AST-workers/
 │   ├── __init__.py
 │   ├── server.py       # FastMCP 服务器
 │   ├── install_ts.py   # ast-ts 安装器
+│   ├── install_go.py   # ast-go 安装器
 │   └── ast-ts-dist.tar.gz  # 打包的 TypeScript CLI
 ├── core/
 │   ├── python/         # Python AST CLI (ast-py)
 │   │   └── ast_py/
-│   └── nodejs-ts/      # TypeScript AST CLI (ast-ts)
-│       └── src/
+│   ├── nodejs-ts/      # TypeScript AST CLI (ast-ts)
+│   │   └── src/
+│   └── go/             # Go AST CLI (ast-go)
+│       └── cmd/
 ├── docs/
 │   └── JSON_SPEC.md    # JSON 规范
 └── tests/

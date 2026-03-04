@@ -7,6 +7,9 @@ import (
 	"os"
 )
 
+// Version information (set via ldflags during build)
+var Version = "dev"
+
 // CLI flags
 var (
 	modulePath string
@@ -46,6 +49,9 @@ func Execute() error {
 		return deleteStruct()
 	case "validate":
 		return validate()
+	case "version", "-v", "--version":
+		fmt.Printf("ast-go %s\n", Version)
+		return nil
 	case "help", "-h", "--help":
 		printUsage()
 		return nil
@@ -75,11 +81,13 @@ Commands:
   delete-function, df   Delete a function
   delete-struct, ds     Delete a struct
   validate              Validate syntax
+  version               Show version
 
 Options:
   -m, --module string   Path to Go source file (required)
   -n, --name string     Symbol name
-  -h, --help            Show this help message`)
+  -h, --help            Show this help message
+  -v, --version         Show version`)
 }
 
 func parseModuleFlag(fs *flag.FlagSet) {

@@ -28,7 +28,7 @@ Based on AST (Abstract Syntax Tree) structure, we provide code query, insertion,
     ▼              ▼              ▼             ▼
 ┌───────┐   ┌──────────┐   ┌─────────┐   ┌─────────┐
 │ast-py │   │ast-ts    │   │ast-go   │   │ast-rust │
-│ ✅    │   │ ✅       │   │ Planned │   │ Planned │
+│ ✅    │   │ ✅       │   │ ✅      │   │ Planned │
 └───────┘   └──────────┘   └─────────┘   └─────────┘
   .py        .ts/.tsx       .go          .rs
              .js/.jsx
@@ -47,6 +47,9 @@ pip install ast-workers-py
 
 # Install TypeScript AST CLI (required for .ts/.tsx/.js/.jsx files)
 ast-workers-mcp install-ts
+
+# Install Go AST CLI (required for .go files)
+ast-workers-mcp install-go install
 ```
 
 ### Install TypeScript CLI
@@ -67,6 +70,28 @@ ast-workers-mcp install-ts --uninstall
 **Requirements:**
 - Node.js 18.0.0 or higher
 - npm
+
+### Install Go CLI
+
+The Go CLI (`ast-go`) is compiled from source. After installing `ast-workers-mcp`:
+
+```bash
+# Check requirements and installation status
+ast-workers-mcp install-go check
+
+# Install ast-go (requires Go toolchain)
+ast-workers-mcp install-go install
+
+# Verify installation
+ast-go version
+
+# Uninstall ast-go
+ast-workers-mcp install-go uninstall
+```
+
+**Requirements:**
+- Go 1.18+ (for generic type support)
+- Go toolchain must be installed on your system
 
 ## Usage
 
@@ -124,6 +149,34 @@ ast-ts show -m src/auth.ts -n AuthService.login
 ast-ts list-functions -m src/auth.ts
 ```
 
+### CLI Usage (ast-go)
+
+```bash
+# Insert a function
+ast-go insert-function -m auth.go -n ValidateToken -p "token string" -r bool -b "return len(token) > 10"
+
+# Insert a method with receiver
+ast-go insert-function -m auth.go -n CheckPermissions --receiver "u *User" -p "action string" -r bool -b "return u.isAdmin()"
+
+# Insert a struct
+ast-go insert-struct -m models.go -n User -f "ID:int, Name:string, Email:string"
+
+# Insert an import
+ast-go insert-import -m auth.go -p "github.com/example/pkg"
+
+# Show symbol with context
+ast-go show -m auth.go -n User.CheckPermissions
+
+# List functions with type information
+ast-go list-functions -m auth.go
+
+# List structs with methods
+ast-go list-structs -m models.go --with-methods
+
+# Validate syntax
+ast-go validate -m auth.go
+```
+
 ### Available Tools
 
 | Tool | Description |
@@ -157,6 +210,35 @@ ast-ts list-functions -m src/auth.ts
 | `list_interfaces` | List interfaces in a TypeScript module |
 | `list_enums` | List enums in a TypeScript module |
 | `list_type_aliases` | List type aliases in a TypeScript module |
+
+### Go-Specific Tools
+
+| Tool | Description |
+|------|-------------|
+| `insert_struct` | Insert a Go struct |
+| `list_structs` | List structs in a Go module |
+| `delete_struct` | Delete a struct from a module |
+
+**Note:** Go uses **receiver** parameter for methods instead of **class_name**:
+
+```python
+# Go method (use receiver)
+insert_function(params={
+    "module": "auth.go",
+    "name": "CheckPermissions",
+    "receiver": "u *User",  # Go method receiver
+    "params": "action string",
+    "return_type": "bool"
+})
+
+# Python/TypeScript method (use class_name)
+insert_function(params={
+    "module": "auth.py",
+    "name": "check_permissions",
+    "class_name": "AuthService",  # Python/TS class
+    "params": "action: str"
+})
+```
 
 ### Language Capabilities
 
@@ -303,14 +385,56 @@ insert_class(params={
 list_interfaces(params={"module": "src/types.ts"})
 ```
 
+### Go
+
+```python
+# Insert a function
+insert_function(params={
+    "module": "auth.go",
+    "name": "ValidateToken",
+    "params": "token string, expiry int",
+    "return_type": "bool",
+    "body": "return len(token) > 10"
+})
+
+# Insert a method with receiver
+insert_function(params={
+    "module": "auth.go",
+    "name": "CheckPermissions",
+    "receiver": "u *User",  # Go uses receiver for methods
+    "params": "action string",
+    "return_type": "bool",
+    "body": "return u.isAdmin()"
+})
+
+# Insert a struct
+insert_struct(params={
+    "module": "models.go",
+    "name": "User",
+    "fields": "ID:int, Name:string, Email:string"
+})
+
+# Insert an import
+insert_import(params={
+    "module": "auth.go",
+    "name": "fmt"
+})
+
+# Query structs with methods
+list_structs(params={"module": "models.go"})
+
+# Show symbol with context
+show_symbol(params={"module": "auth.go", "name": "User.CheckPermissions"})
+```
+
 ## Supported Languages
 
-| Language | CLI | Status |
-|----------|-----|--------|
-| Python | `ast-py` | ✅ Ready |
-| TypeScript/JavaScript | `ast-ts` | ✅ Ready |
-| Go | `ast-go` | 📋 Planned |
-| Rust | `ast-rust` | 📋 Planned |
+| Language | CLI | Status | Requirements |
+|----------|-----|--------|--------------|
+| Python | `ast-py` | ✅ Ready | `pip install ast-workers-py` |
+| TypeScript/JavaScript | `ast-ts` | ✅ Ready | Node.js 18+ |
+| Go | `ast-go` | ✅ Ready | Go 1.18+ |
+| Rust | `ast-rust` | 📋 Planned | - |
 
 ## Project Structure
 
@@ -321,12 +445,15 @@ AST-workers/
 │   ├── __init__.py
 │   ├── server.py       # FastMCP server
 │   ├── install_ts.py   # ast-ts installer
+│   ├── install_go.py   # ast-go installer
 │   └── ast-ts-dist.tar.gz  # Bundled TypeScript CLI
 ├── core/
 │   ├── python/         # Python AST CLI (ast-py)
 │   │   └── ast_py/
-│   └── nodejs-ts/      # TypeScript AST CLI (ast-ts)
-│       └── src/
+│   ├── nodejs-ts/      # TypeScript AST CLI (ast-ts)
+│   │   └── src/
+│   └── go/             # Go AST CLI (ast-go)
+│       └── cmd/
 ├── docs/
 │   └── JSON_SPEC.md    # JSON specification
 └── tests/

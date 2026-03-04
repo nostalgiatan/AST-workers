@@ -161,9 +161,14 @@ def install_go() -> int:
     print(f"  Source: {go_src_dir}")
     print(f"  Output: {binary_path}")
     
-    # Compile with optimizations
+    # Get version from pyproject.toml or use default
+    version = "0.1.7"
+    
+    # Compile with optimizations and version
     result = subprocess.run(
-        ["go", "build", "-ldflags=-s -w", "-o", str(binary_path), "."],
+        ["go", "build", 
+         f"-ldflags=-s -w -X cmd.Version={version}",
+         "-o", str(binary_path), "."],
         cwd=str(go_src_dir),
         capture_output=True,
         text=True,
