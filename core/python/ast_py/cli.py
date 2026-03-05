@@ -27,6 +27,7 @@ from .operations import (
     list_imports,
     parse_operations,
     rename_symbol,
+    update_class_variable,
     update_function,
 )
 from .utils import validate_syntax
@@ -168,6 +169,14 @@ Example: "a, b, /, c:int, d:int=1, *, e:str, **kwargs" """,
     p_cvar.add_argument("--name", "-n", required=True, help="Variable name")
     p_cvar.add_argument("--type", "-t", dest="var_type", help="Type annotation")
     p_cvar.add_argument("--value", "-v", dest="var_value", help="Initial value")
+
+    # ========== UPDATE CLASS VARIABLE ==========
+    p_ucvar = subparsers.add_parser("update-class-variable", help="Update a class variable", aliases=["ucv"])
+    p_ucvar.add_argument("--module", "-m", required=True, help="Target module path")
+    p_ucvar.add_argument("--class", "-c", dest="class_name", required=True, help="Target class name")
+    p_ucvar.add_argument("--name", "-n", required=True, help="Variable name")
+    p_ucvar.add_argument("--type", "-t", dest="new_type", help="New type annotation")
+    p_ucvar.add_argument("--value", "-v", dest="new_value", help="New value")
 
     # ========== INSERT SLOTS ==========
     p_slots = subparsers.add_parser("insert-slots", help="Insert __slots__ into a class", aliases=["is"])
@@ -387,6 +396,15 @@ def main() -> int:
                 add_decorators=args.add_decorators,
                 remove_decorators=args.remove_decorators,
                 new_docstring=args.docstring,
+            )
+
+        elif args.operation in ("update-class-variable", "ucv"):
+            result = update_class_variable(
+                module_path=module_path,
+                class_name=args.class_name,
+                var_name=args.name,
+                new_type=args.new_type,
+                new_value=args.new_value,
             )
 
         # ========== QUERY OPERATIONS ==========

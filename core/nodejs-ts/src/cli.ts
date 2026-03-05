@@ -13,7 +13,7 @@ import {
   insertImport,
   insertNamespace,
 } from './operations/insert.js';
-import { updateFunction } from './operations/update.js';
+import { updateFunction, updateProperty } from './operations/update.js';
 import { deleteFunction, deleteClass, deleteInterface, deleteVariable, deleteEnum, deleteTypeAlias } from './operations/delete.js';
 import {
   listFunctions,
@@ -305,6 +305,26 @@ program
       params: options.params,
       returnType: options.returnType,
       docstring: options.docstring,
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('update-property')
+  .alias('up')
+  .description('Update a class property')
+  .requiredOption('-m, --module <path>', 'Target module path')
+  .requiredOption('-c, --class <className>', 'Class name')
+  .requiredOption('-n, --name <name>', 'Property name')
+  .option('-t, --type <type>', 'New type')
+  .option('-v, --value <value>', 'New initial value')
+  .action(async (options) => {
+    const result = await updateProperty({
+      module: options.module,
+      className: options.class,
+      name: options.name,
+      type: options.type,
+      initializer: options.value,
     });
     console.log(JSON.stringify(result, null, 2));
   });

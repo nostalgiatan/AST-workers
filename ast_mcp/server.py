@@ -1284,6 +1284,85 @@ def insert_class_variable(params: InsertClassVariableParams) -> dict[str, Any]:
     return run_cli_command(cli, args)
 
 
+class UpdateClassVariableParams(BaseModel):
+    """Parameters for update-class-variable operation.
+
+    Updates a class variable's type and/or value.
+
+    Python/TypeScript:
+        - Updates class property/variable
+        - Can add type annotation to untyped variables
+
+    Go:
+        - Updates struct field
+        - Can update field tag
+    """
+
+    module: str = Field(description="Path to the source file")
+    class_name: str = Field(description="Target class/struct name")
+    name: str = Field(description="Variable/field name to update")
+    new_type: Optional[str] = Field(default=None, description="New type annotation")
+    new_value: Optional[str] = Field(default=None, description="New initial value")
+    new_tag: Optional[str] = Field(
+        default=None, description="[Go only] New struct tag (e.g., 'json:\"name\"')"
+    )
+    language: Optional[str] = Field(
+        default=None,
+        description="Language: python, typescript, go, rust (auto-detected from file extension if not specified)",
+    )
+
+
+@mcp.tool
+def update_class_variable(params: UpdateClassVariableParams) -> dict[str, Any]:
+    """Update a class variable or struct field.
+
+    Example (Python/TypeScript):
+        update_class_variable(
+            module="src/models.py",
+            class_name="User",
+            name="count",
+            new_type="int",
+            new_value="0"
+        )
+
+    Example (Go):
+        update_class_variable(
+            module="models.go",
+            class_name="User",
+            name="Name",
+            new_tag='json:"username"'
+        )
+    """
+    cli = get_cli(params.module, params.language)
+    if not cli:
+        lang_info = f" (language={params.language})" if params.language else ""
+        return {
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_FILE_TYPE",
+                "message": f"No CLI available for file: {params.module}{lang_info}. Supported: python, typescript, go, rust",
+            },
+            "result": None,
+        }
+
+    # Build CLI args based on language
+    if cli == "ast-go":
+        args = ["update-struct-field", "-m", params.module, "-s", params.class_name, "-n", params.name]
+        if params.new_type:
+            args.extend(["-t", params.new_type])
+        if params.new_tag:
+            args.extend(["--tag", params.new_tag])
+    else:
+        # Python and TypeScript use update-class-variable / update-property
+        args = ["update-class-variable", "-m", params.module, "-c", params.class_name, "-n", params.name]
+        if params.new_type:
+            args.extend(["-t", params.new_type])
+        if params.new_value:
+            args.extend(["-v", params.new_value])
+
+    return run_cli_command(cli, args)
+
+
 # ========== UPDATE OPERATIONS ==========
 
 

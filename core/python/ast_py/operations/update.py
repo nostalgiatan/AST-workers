@@ -537,3 +537,167 @@ def update_function(
         },
         "modified": True,
     }
+
+
+class UpdateClassVariableTransformer(cst.CSTTransformer):
+    """CST Transformer for updating class variables."""
+
+    def __init__(
+        self,
+        class_name: str,
+        var_name: str,
+        new_type: Optional[str] = None,
+        new_value: Optional[str] = None,
+    ):
+        self.class_name = class_name
+        self.var_name = var_name
+        self.new_type = new_type
+        self.new_value = new_value
+        self.found = False
+        self.updated = False
+        self.in_target_class = False
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> bool:
+        if node.name.value == self.class_name:
+            self.in_target_class = True
+        return True
+
+    def leave_ClassDef(self, original_node: cst.ClassDef, updated_node: cst.ClassDef) -> cst.ClassDef:
+        if original_node.name.value == self.class_name:
+            self.in_target_class = False
+        return updated_node
+
+    def leave_SimpleStatementLine(
+        self,
+        original_node: cst.SimpleStatementLine,
+        updated_node: cst.SimpleStatementLine,
+    ) -> cst.SimpleStatementLine:
+        if not self.in_target_class:
+            return updated_node
+
+        # Check for AnnAssign (typed variable: name: Type = value)
+        if len(original_node.body) == 1 and isinstance(original_node.body[0], cst.AnnAssign):
+            ann_assign = original_node.body[0]
+            if isinstance(ann_assign.target, cst.Name) and ann_assign.target.value == self.var_name:
+                self.found = True
+                if self.new_type is not None or self.new_value is not None:
+                    self.updated = True
+                    new_annotation = ann_assign.annotation
+                    new_value = ann_assign.value
+
+                    if self.new_type is not None:
+                        new_annotation = cst.Annotation(annotation=cst.parse_expression(self.new_type))
+                    if self.new_value is not None:
+                        new_value = cst.parse_expression(self.new_value)
+
+                    return updated_node.with_changes(
+                        body=[
+                            cst.AnnAssign(
+                                target=ann_assign.target,
+                                annotation=new_annotation,
+                                value=new_value,
+                            )
+                        ]
+                    )
+
+        # Check for Assign (untyped variable: name = value)
+        if len(original_node.body) == 1 and isinstance(original_node.body[0], cst.Assign):
+            assign = original_node.body[0]
+            for target in assign.targets:
+                if isinstance(target.target, cst.Name) and target.target.value == self.var_name:
+                    self.found = True
+                    if self.new_value is not None or self.new_type is not None:
+                        self.updated = True
+                        if self.new_type is not None:
+                            # Convert to AnnAssign
+                            return updated_node.with_changes(
+                                body=[
+                                    cst.AnnAssign(
+                                        target=target.target,
+                                        annotation=cst.Annotation(
+                                            annotation=cst.parse_expression(self.new_type)
+                                        ),
+                                        value=(
+                                            cst.parse_expression(self.new_value)
+                                            if self.new_value is not None
+                                            else assign.value
+                                        ),
+                                    )
+                                ]
+                            )
+                        else:
+                            # Keep as Assign, update value
+                            new_value = cst.parse_expression(self.new_value)
+                            return updated_node.with_changes(
+                                body=[
+                                    cst.Assign(
+                                        targets=assign.targets,
+                                        value=new_value,
+                                    )
+                                ]
+                            )
+
+        return updated_node
+
+
+def update_class_variable(
+    module_path: Path,
+    class_name: str,
+    var_name: str,
+    new_type: Optional[str] = None,
+    new_value: Optional[str] = None,
+) -> dict[str, Any]:
+    """Update a class variable.
+
+    Args:
+        module_path: Path to the Python module
+        class_name: Target class name
+        var_name: Variable name to update
+        new_type: New type annotation (None to keep existing)
+        new_value: New value (None to keep existing)
+
+    Returns:
+        Result dict with operation details
+    """
+    source = module_path.read_text()
+
+    # Create transformer
+    transformer = UpdateClassVariableTransformer(
+        class_name=class_name,
+        var_name=var_name,
+        new_type=new_type,
+        new_value=new_value,
+    )
+
+    # Parse and transform
+    tree = cst.parse_module(source)
+    new_tree = tree.visit(transformer)
+
+    if not transformer.found:
+        raise ValueError(f"Variable '{var_name}' not found in class '{class_name}'")
+
+    if not transformer.updated:
+        return {
+            "operation": "update_class_variable",
+            "target": {
+                "module": str(module_path),
+                "class": class_name,
+                "variable": var_name,
+            },
+            "modified": False,
+            "message": "No changes specified",
+        }
+
+    # Write back
+    new_source = new_tree.code
+    module_path.write_text(new_source)
+
+    return {
+        "operation": "update_class_variable",
+        "target": {
+            "module": str(module_path),
+            "class": class_name,
+            "variable": var_name,
+        },
+        "modified": True,
+    }

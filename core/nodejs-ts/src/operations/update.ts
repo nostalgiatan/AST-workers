@@ -144,3 +144,59 @@ function parseParams(paramsStr: string): Array<{ name: string; type?: string; in
 
   return params;
 }
+
+interface UpdatePropertyOptions {
+  module: string;
+  className: string;
+  name: string;
+  type?: string;
+  initializer?: string;
+}
+
+export async function updateProperty(options: UpdatePropertyOptions): Promise<Record<string, unknown>> {
+  const result: Record<string, unknown> = {
+    operation: 'update_property',
+    target: { module: options.module, className: options.className, name: options.name },
+    success: false,
+  };
+
+  try {
+    const project = getProject(options.module);
+    const sourceFile = project.getSourceFile(options.module);
+
+    if (!sourceFile) {
+      result.error = 'Module not found';
+      return result;
+    }
+
+    const classDecl = sourceFile.getClass(options.className);
+    if (!classDecl) {
+      result.error = `Class '${options.className}' not found`;
+      return result;
+    }
+
+    const prop = classDecl.getProperty(options.name);
+    if (!prop) {
+      result.error = `Property '${options.name}' not found in class '${options.className}'`;
+      return result;
+    }
+
+    // Update type
+    if (options.type !== undefined) {
+      prop.setType(options.type);
+    }
+
+    // Update initializer
+    if (options.initializer !== undefined) {
+      prop.setInitializer(options.initializer);
+    }
+
+    await sourceFile.save();
+    result.success = true;
+    result.message = `Property '${options.name}' updated successfully`;
+  } catch (error) {
+    result.error = error instanceof Error ? error.message : String(error);
+  }
+
+  return result;
+}

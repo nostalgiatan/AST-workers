@@ -43,6 +43,8 @@ func Execute() error {
 		return insertImport()
 	case "update-function", "uf":
 		return updateFunction()
+	case "update-struct-field", "usf":
+		return updateStructField()
 	case "delete-function", "df":
 		return deleteFunction()
 	case "delete-struct", "ds":
@@ -78,6 +80,7 @@ Commands:
   insert-struct, is     Insert a struct
   insert-import, ii     Insert an import
   update-function, uf   Update a function
+  update-struct-field, usf Update a struct field
   delete-function, df   Delete a function
   delete-struct, ds     Delete a struct
   validate              Validate syntax
